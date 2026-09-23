@@ -6,7 +6,7 @@
     if (!input || typeof input !== "object") return result;
     result.selected = [...new Set((Array.isArray(input.selected) ? input.selected : []).filter(validId))].slice(0, 600);
     result.agenda = Object.fromEntries(Object.entries(input.agenda || {}).filter(([id, session]) => result.selected.includes(id) && typeof session === "string" && /^\d+-film_session$/.test(session)));
-    result.commitments = (Array.isArray(input.commitments) ? input.commitments : []).filter((item) => item && typeof item.start === "string" && typeof item.end === "string" && /^2026-10-(0[8-9]|1[0-6])T/.test(item.start) && Number.isFinite(Date.parse(item.start)) && Date.parse(item.end) > Date.parse(item.start)).slice(0, 100).map((item, index) => ({ id: String(item.id || `reserva-${index}`).slice(0, 100), label: String(item.label || "Reserva personal").slice(0, 120), start: item.start.slice(0, 25), end: item.end.slice(0, 25) }));
+    result.commitments = (Array.isArray(input.commitments) ? input.commitments : []).filter((item) => item && typeof item.start === "string" && typeof item.end === "string" && /^2026-10-(0[8-9]|1[0-8])T/.test(item.start) && Number.isFinite(Date.parse(item.start)) && Date.parse(item.end) > Date.parse(item.start)).slice(0, 100).map((item, index) => ({ id: String(item.id || `reserva-${index}`).slice(0, 100), label: String(item.label || "Reserva personal").slice(0, 120), start: item.start.slice(0, 25), end: item.end.slice(0, 25) }));
     result.lodging.address = String(input.lodging?.address || "").slice(0, 240);
     return result;
   };

@@ -18,6 +18,15 @@
     [1252.2, 1354.7, 434.7, 521.8, 0],
   ];
   const estimate = (fromId, toId) => {
+    // Llevant is on floor −1 of the same hotel. Use the hotel entrance route
+    // plus an explicit five-minute indoor allowance, not a claimed measured route.
+    if (fromId === "llevant" || toId === "llevant") {
+      if (fromId === toId) return { minutes: 0, distanceMeters: 0, withinMelia: false };
+      const other = fromId === "llevant" ? toId : fromId;
+      if (["auditori", "tramuntana"].includes(other)) return { minutes: 5, distanceMeters: null, withinMelia: true };
+      const route = estimate("auditori", other);
+      return route ? { ...route, minutes: route.minutes + 5, hotelAllowance: true } : null;
+    }
     const from = venueIds.indexOf(fromId), to = venueIds.indexOf(toId);
     if (from < 0 || to < 0) return null;
     const withinMelia = from !== to && from < 2 && to < 2;

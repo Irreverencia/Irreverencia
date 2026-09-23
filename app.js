@@ -4,15 +4,15 @@
 
   const $ = (selector) => document.querySelector(selector);
   const storageKey = "sitges-2026-agenda-local-v2";
-  const travelDays = ["2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"];
+  const travelDays = Array.from({ length: 11 }, (_, i) => `2026-10-${String(i + 8).padStart(2, "0")}`);
   const allDaysKey = "all";
   let commitments = [];
   let lodging = { address: "" };
   let locked = false;
   const isTravelSession = (session) => travelDays.includes(session.start.slice(0, 10));
+  const festivalTime = (value) => /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}+02:00`;
   const movies = program.movies
-    .map((movie) => ({ ...movie, sessions: movie.sessions.filter(isTravelSession) }))
-    .filter((movie) => movie.sessions.length);
+    .map((movie) => ({ ...movie, sessions: movie.sessions.filter(isTravelSession).map((session) => ({ ...session, start: festivalTime(session.start), end: festivalTime(session.end) })) }));
   if (!movies.length) return;
   const movieById = new Map(movies.map((movie) => [movie.id, movie]));
   const venues = [
@@ -21,16 +21,17 @@
     { id: "prado", name: "Cinema Casino Prado", address: "Carrer de Francesc Gumà, 6-14 · Sitges", googleQuery: "Casino Prado Suburense, Carrer de Francesc Gumà 6-14, 08870 Sitges, Barcelona", lat: 41.23794, lng: 1.81062, mapX: 153, mapY: 298 },
     { id: "escorxador", name: "Cinema Escorxador", address: "Carrer de Joan Maragall, 36 · Sitges", googleQuery: "Carrer de Joan Maragall 36, 08870 Sitges, Barcelona", lat: 41.2371, lng: 1.81581, mapX: 834, mapY: 455 },
     { id: "mercat", name: "Mercat Vell", address: "Plaça de l'Ajuntament, 11 · Sitges", googleQuery: "Mercat Vell de Sitges, Plaça de l'Ajuntament 11, 08870 Sitges, Barcelona", lat: 41.23522, lng: 1.81166, mapX: 290, mapY: 690 },
+    { id: "llevant", name: "Sala Llevant · Brigadoon", address: "Hotel Meliá Sitges · planta −1 · marcador del hotel", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, Sitges", lat: 41.2367, lng: 1.82392, mapX: 1858, mapY: 485 },
   ];
   const homeOnMap = { name: "Tu alojamiento", mapX: 1662, mapY: 255 };
   const persisted = (() => {
     try { return window.SitgesData.migrateLegacy(JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem("sitges-2026-agenda-v1") || "{}")); } catch { return window.SitgesData.empty(); }
   })();
-  commitments = persisted.commitments;
-  lodging = persisted.lodging;
+  // Keep the old device copy available for explicit import, never as the public default.
+  const initial = window.SitgesData.empty();
   const state = {
-    selected: new Set((persisted.selected || []).filter((id) => movieById.has(id))),
-    agenda: new Map(Object.entries(persisted.agenda || {}).filter(([id, sessionId]) => movieById.get(id)?.sessions.some((session) => session.id === sessionId))),
+    selected: new Set(initial.selected),
+    agenda: new Map(),
     query: "",
     section: "all",
     activeDay: allDaysKey,
@@ -52,7 +53,8 @@
   const shortDay = (value) => new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "long" }).format(new Date(`${dateOf(value)}T12:00:00`));
   const duration = (session) => Math.round((timeValue(session.end) - timeValue(session.start)) / 60000);
   const overlaps = (a, b) => timeValue(a.start) < timeValue(b.end) && timeValue(b.start) < timeValue(a.end);
-  const getSession = (movieId, sessionId) => movieById.get(movieId)?.sessions.find((session) => session.id === sessionId);
+  const schedulable = (session) => !session.unconfirmedDuration && timeValue(session.end) > timeValue(session.start);
+  const getSession = (movieId, sessionId) => movieById.get(movieId)?.sessions.find((session) => session.id === sessionId && schedulable(session));
   const conflictingCommitment = (session) => commitments.find((commitment) => overlaps(session, commitment));
   const snapshot = () => window.SitgesData.normalize({ selected: [...state.selected], agenda: Object.fromEntries(state.agenda), commitments, lodging });
   let persistHandler = (data) => localStorage.setItem(storageKey, JSON.stringify(data));
@@ -74,7 +76,7 @@
 
   const defaultSessionFor = (movie) => {
     const sessionsForDay = state.activeDay === allDaysKey ? movie.sessions : movie.sessions.filter((session) => dateOf(session.start) === state.activeDay);
-    return [...(sessionsForDay.length ? sessionsForDay : movie.sessions)].sort((a, b) => timeValue(a.start) - timeValue(b.start))[0];
+    return [...(sessionsForDay.length ? sessionsForDay : movie.sessions)].filter(schedulable).sort((a, b) => timeValue(a.start) - timeValue(b.start))[0];
   };
   const ensureSessionsForSelectedMovies = () => {
     state.selected.forEach((movieId) => {
@@ -90,7 +92,7 @@
       const commitment = conflictingCommitment(session);
       if (commitment) add(movie.id, `Se solapa con ${commitment.label.toLocaleLowerCase("es")} (${timeOf(commitment.start)}–${timeOf(commitment.end)}).`);
       items.slice(index + 1).forEach((other) => {
-        if (!overlaps(session, other.session)) return;
+        if (session.id === other.session.id || !overlaps(session, other.session)) return;
         add(movie.id, `Se solapa con ${other.movie.title} (${timeOf(other.session.start)}–${timeOf(other.session.end)}).`);
         add(other.movie.id, `Se solapa con ${movie.title} (${timeOf(session.start)}–${timeOf(session.end)}).`);
       });
@@ -101,12 +103,12 @@
     const messages = [];
     const commitment = conflictingCommitment(candidate);
     if (commitment) messages.push(`${commitment.label} (${timeOf(commitment.start)}–${timeOf(commitment.end)})`);
-    plannedItems().filter((item) => item.movie.id !== movieId && overlaps(candidate, item.session)).forEach((item) => {
+    plannedItems().filter((item) => item.movie.id !== movieId && item.session.id !== candidate.id && overlaps(candidate, item.session)).forEach((item) => {
       messages.push(`${item.movie.title} (${timeOf(item.session.start)}–${timeOf(item.session.end)})`);
     });
     return messages;
   };
-  const compatibleSessionsFor = (movie) => movie.sessions.filter((session) => !conflictMessagesForSession(movie.id, session).length);
+  const compatibleSessionsFor = (movie) => movie.sessions.filter((session) => schedulable(session) && !conflictMessagesForSession(movie.id, session).length);
   const checkAgenda = (announce = true) => {
     const conflicts = conflictsByMovie();
     renderAgenda();
@@ -125,17 +127,18 @@
       const inActiveDay = state.activeDay === allDaysKey || movie.sessions.some((session) => dateOf(session.start) === state.activeDay);
       return inText && inSection && inActiveDay;
     });
-    const scope = state.activeDay === allDaysKey ? "del 8 al 16 de octubre" : `para ${shortDay(`${state.activeDay}T12:00:00`)}`;
+    const scope = state.activeDay === allDaysKey ? "del catálogo del 8 al 18 de octubre" : `para ${shortDay(`${state.activeDay}T12:00:00`)}`;
     results.textContent = `${visible.length} películas ${scope} · marca las que quieres ver`;
     count.textContent = state.selected.size;
     const sessionsText = (movie) => {
       const sessions = movie.sessions.filter((session) => state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay);
-      return sessions.map((session) => state.activeDay === allDaysKey ? `${shortDay(session.start)} · ${timeOf(session.start)}` : timeOf(session.start)).join(" · ");
+      if (!sessions.length) return "Pases pendientes de publicación";
+      return sessions.map((session) => `${state.activeDay === allDaysKey ? `${shortDay(session.start)} · ` : ""}${timeOf(session.start)}${session.unconfirmedDuration ? " (fin pendiente de confirmar; aún no agendable)" : ""}`).join(" · ");
     };
     list.innerHTML = visible.map((movie) => `
       <label class="movie-card">
         <input type="checkbox" data-movie-id="${movie.id}" ${state.selected.has(movie.id) ? "checked" : ""} />
-        ${movie.posterUrl ? `<span class="poster-wrap" tabindex="0"><img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" /><img class="poster-zoom" src="${escapeHtml(movie.posterUrl)}" alt="" aria-hidden="true" /></span>` : `<span class="poster-fallback" aria-hidden="true">SIN<br>PÓSTER</span>`}
+        ${movie.posterUrl ? `<span class="poster-wrap" tabindex="0"><img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" /><img class="poster-zoom" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="" aria-hidden="true" /></span>` : `<span class="poster-fallback" aria-hidden="true">SIN<br>PÓSTER</span>`}
         <span>
           <span class="movie-title">${escapeHtml(movie.title)}</span>
           <span class="movie-meta">${movie.duration || "—"} min · ${movie.sessions.length} ${movie.sessions.length === 1 ? "pase" : "pases"}${movie.directors.length ? ` · ${escapeHtml(movie.directors.join(" · "))}` : ""}</span>
@@ -159,10 +162,6 @@
     $("#unassignedCount").textContent = unassigned.length;
     $("#conflictCount").textContent = conflictMap.size;
     $("#daysCount").textContent = groups.size;
-    if (!state.selected.size) {
-      content.innerHTML = `<section class="empty-state"><span class="empty-icon">＋</span><h3>Empieza por tus imprescindibles</h3><p>Tu agenda se organiza del 8 al 16 de octubre. Selecciona una película y elige manualmente el pase que prefieras.</p></section>`;
-      return;
-    }
     const itemsForDay = (day) => groups.get(day) || [];
     const walkingRoutesFor = (items) => items.map((item, index) => {
       if (!index) return null;
@@ -178,8 +177,8 @@
       return `
       <article class="agenda-card${conflicts.length ? " has-conflict" : ""}">
         <div class="agenda-time">${timeOf(session.start)}<small>hasta ${timeOf(session.end)}</small></div>
-        <div class="agenda-main"><h4 class="agenda-title">${escapeHtml(movie.title)}</h4><p class="agenda-venue"><span>●</span>${escapeHtml(session.location)} · ${duration(session)} min</p><div class="agenda-card-actions"><button class="map-for-movie" type="button" data-map-for="${movie.id}">Ver sala en el mapa</button><button class="unassign-movie" type="button" data-unassign-movie="${movie.id}">Quitar de este día</button></div></div>
-        <label class="agenda-choice"><span class="sr-only">Cambiar pase de ${escapeHtml(movie.title)}</span><select data-session-for="${movie.id}">${movie.sessions.map((option) => `<option value="${option.id}" ${option.id === session.id ? "selected" : ""}>${escapeHtml(shortDay(option.start))} · ${timeOf(option.start)} · ${escapeHtml(option.location)}</option>`).join("")}</select></label>
+        <div class="agenda-main"><h4 class="agenda-title">${escapeHtml(movie.title)}</h4><p class="agenda-venue"><span>●</span>${escapeHtml(session.location)} · ${duration(session)} min</p>${session.shared ? `<p class="shared-session">Sesión conjunta: ${escapeHtml(session.name)}. Se reserva el bloque completo; el festival no publica una hora individual para cada película.</p>` : ""}<div class="agenda-card-actions"><button class="map-for-movie" type="button" data-map-for="${movie.id}">Ver sala en el mapa</button><button class="unassign-movie" type="button" data-unassign-movie="${movie.id}">Quitar de este día</button></div></div>
+        <label class="agenda-choice"><span class="sr-only">Cambiar pase de ${escapeHtml(movie.title)}</span><select data-session-for="${movie.id}">${movie.sessions.map((option) => `<option value="${option.id}" ${option.id === session.id ? "selected" : ""} ${schedulable(option) ? "" : "disabled"}>${escapeHtml(shortDay(option.start))} · ${timeOf(option.start)} · ${escapeHtml(option.location)}${schedulable(option) ? "" : " · fin pendiente"}</option>`).join("")}</select></label>
         ${conflicts.length ? `<aside class="conflict-notice" role="alert"><strong>⚠️ Conflicto</strong><span>${escapeHtml(conflicts.join(" "))}</span><small>Elige otro pase en el selector o quita esta película de este día.</small><button class="conflict-unassign" type="button" data-unassign-movie="${movie.id}">Quitar esta película del día</button></aside>` : ""}
       </article>`;
     }).join("") : `<p class="day-empty">No hay películas agendadas este día.</p>`;
@@ -202,15 +201,15 @@
           <div class="route-timing">${timing ? `<strong class="route-duration">≈ ${timing.minutes} min ${timing.withinMelia ? "para cambiar de sala en el Meliá" : `a pie${distance}`}</strong><span>${gap}</span><span class="route-margin">${margin}</span>` : `<span>Tiempo a pie no disponible. Consulta la ruta en Google Maps.</span>`}</div>
         </div>`;
       }).join("");
-      return `<section class="walking-routes" aria-label="Rutas a pie entre cines"><h4>Rutas a pie entre cines</h4>${routes.length ? `<div class="walking-route-list">${routeCards}</div><p class="walking-estimate-note">Tiempos aproximados, sin colas ni acceso a la sala. Entre las dos salas del Meliá se reservan 5 min orientativos. Los demás recorridos usan rutas peatonales guardadas el 23/09/2026 de <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noreferrer">OSRM/FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">Corregir el mapa</a>. No se cambian tus pases automáticamente.</p>` : `<p>Hoy no necesitas desplazarte entre cines para las películas agendadas.</p>`}</section>`;
+      return `<section class="walking-routes" aria-label="Rutas a pie entre cines"><h4>Rutas a pie entre cines</h4>${routes.length ? `<div class="walking-route-list">${routeCards}</div><p class="walking-estimate-note">Tiempos aproximados, sin colas ni acceso a la sala. Entre salas del Meliá se reservan 5 min orientativos. Para Llevant se usa la entrada del hotel y se añaden 5 min de circulación interior al trayecto exterior. Los demás recorridos usan rutas peatonales guardadas el 23/09/2026 de <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noreferrer">OSRM/FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">Corregir el mapa</a>. No se cambian tus pases automáticamente.</p>` : `<p>Hoy no necesitas desplazarte entre cines para las películas agendadas.</p>`}</section>`;
     };
     const unassignedPanelHtml = state.showUnassigned && unassigned.length ? `<section id="unassignedPanel" class="unassigned-panel" aria-labelledby="unassignedTitle"><div class="unassigned-heading"><div><p class="eyebrow">PELÍCULAS SIN HUECO</p><h3 id="unassignedTitle">Elige un nuevo día y pase</h3><p>Estas películas siguen seleccionadas, pero no están en ningún día de tu agenda.</p></div><button class="close-unassigned" type="button" data-close-unassigned>Cerrar</button></div><div class="unassigned-list">${unassigned.map((movie) => {
       const options = compatibleSessionsFor(movie);
       const byDay = options.reduce((days, session) => { const day = dateOf(session.start); (days.get(day) || days.set(day, []).get(day)).push(session); return days; }, new Map());
-      const daysHtml = options.length ? [...byDay.entries()].map(([day, sessions]) => `<div class="move-day"><strong>${escapeHtml(shortDay(`${day}T12:00:00`))}</strong><div>${sessions.map((session) => `<button class="move-session" type="button" data-assign-movie="${movie.id}" data-assign-session="${escapeHtml(session.id)}">${timeOf(session.start)} · ${escapeHtml(session.location)}</button>`).join("")}</div></div>`).join("") : `<p class="no-available-session">No quedan pases libres con la agenda actual. Puedes eliminarla de la selección o mover primero una película que se cruce.</p>`;
+      const daysHtml = options.length ? [...byDay.entries()].map(([day, sessions]) => `<div class="move-day"><strong>${escapeHtml(shortDay(`${day}T12:00:00`))}</strong><div>${sessions.map((session) => `<button class="move-session" type="button" data-assign-movie="${movie.id}" data-assign-session="${escapeHtml(session.id)}">${timeOf(session.start)} · ${escapeHtml(session.location)}</button>`).join("")}</div></div>`).join("") : `<p class="no-available-session">${movie.sessions.some(schedulable) ? "No quedan pases libres con la agenda actual. Puedes eliminarla de la selección o mover primero una película que se cruce." : "El festival aún no publica un pase con horario completo para esta película. Puedes mantenerla en tu selección como pendiente o eliminarla."}</p>`;
       return `<article class="unassigned-card"><div><h4>${escapeHtml(movie.title)}</h4><p>${movie.duration || "—"} min · ${movie.sessions.length} ${movie.sessions.length === 1 ? "pase" : "pases"} posibles</p></div><div class="move-options"><span>Opciones sin solape</span>${daysHtml}</div><button class="remove-movie" type="button" data-remove-movie="${movie.id}">Eliminar de mi selección</button></article>`;
     }).join("")}</div></section>` : "";
-    const tabsHtml = `<div class="day-tabs" role="tablist" aria-label="Días de tu agenda"><button class="day-tab day-tab-all" type="button" role="tab" aria-selected="${state.activeDay === allDaysKey}" data-day-tab="${allDaysKey}"><span class="day-tab-date">Días del festival</span><span class="day-tab-count">8 — 16 octubre</span></button>${travelDays.map((day) => {
+    const tabsHtml = `<div class="day-tabs" role="tablist" aria-label="Días de tu agenda"><button class="day-tab day-tab-all" type="button" role="tab" aria-selected="${state.activeDay === allDaysKey}" data-day-tab="${allDaysKey}"><span class="day-tab-date">Días del festival</span><span class="day-tab-count">8 — 18 octubre</span></button>${travelDays.map((day) => {
       const items = itemsForDay(day);
       const hasConflict = items.some((item) => conflictMap.has(item.movie.id));
       return `<button class="day-tab${hasConflict ? " has-conflict" : ""}" type="button" role="tab" aria-selected="${day === state.activeDay}" data-day-tab="${day}"><span class="day-tab-date">${shortDay(`${day}T12:00:00`)}</span><span class="day-tab-count">${items.length} ${items.length === 1 ? "película" : "películas"}</span>${hasConflict ? `<span class="day-tab-conflict">⚠ Conflicto</span>` : ""}</button>`;
@@ -283,10 +282,11 @@
   };
 
   const setupSections = () => {
-    const options = [...new Set(movies.flatMap((movie) => [...movie.sections, ...movie.inclusion.split(" + ")]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
-    $("#sectionFilter").innerHTML = `<option value="all">Todas las secciones</option>${options.map((option) => `<option value="${option}">${option}</option>`).join("")}`;
+    const options = [...new Set(movies.flatMap((movie) => movie.sections).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+    $("#sectionFilter").innerHTML = `<option value="all">Todas las secciones</option>${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}`;
   };
   const venueForLocation = (location) => {
+    if (location.includes("Llevant")) return "llevant";
     if (location.includes("Sala Tramuntana Meliá")) return "tramuntana";
     if (location.includes("Sala Auditori Meliá")) return "auditori";
     if (location.includes("Casino Prado")) return "prado";
@@ -309,14 +309,15 @@
       prado: "Casino Prado",
       escorxador: "Escorxador",
       mercat: "Mercat Vell",
+      llevant: "Llevant · hotel, planta −1",
     };
     const markers = venues.map((venue) => {
       const active = focusedVenue?.id === venue.id || (!focusedVenue && mapVenues.some((item) => item.id === venue.id));
       const scheduled = mapVenues.some((item) => item.id === venue.id);
-      const isRightEdge = venue.id === "tramuntana";
+      const isRightEdge = venue.id === "tramuntana" || venue.id === "llevant";
       const textX = isRightEdge ? -20 : 20;
       const textAnchor = isRightEdge ? "end" : "start";
-      return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="6" text-anchor="${textAnchor}">${escapeHtml(labels[venue.id] || venue.name)}</text></g>`;
+      return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="${venue.id === "llevant" ? -22 : 6}" text-anchor="${textAnchor}">${escapeHtml(labels[venue.id] || venue.name)}</text></g>`;
     }).join("");
     const home = /devesa.*22/i.test(lodging.address) ? `<g class="saved-map-home" transform="translate(${homeOnMap.mapX} ${homeOnMap.mapY})"><circle r="15"/><path d="M-7 0 0-7 7 0V8H3V3H-3V8H-7Z"/><text x="20" y="6">${escapeHtml(homeOnMap.name)}</text></g>` : "";
     target.innerHTML = `<div class="saved-map-image-wrap"><img class="saved-map-image" src="assets/mapa-sitges-openstreetmap.png" alt="Mapa de Sitges con la ubicación de las salas de proyección y del alojamiento" /><svg class="saved-map-overlay" viewBox="0 0 2072 745" aria-hidden="true" focusable="false">${route}${markers}${home}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div>`;
@@ -468,7 +469,7 @@
   window.SitgesAgenda = {
     snapshot,
     localKey: storageKey,
-    initialLocal: snapshot(),
+    initialLocal: persisted,
     setPersistence: (handler) => { persistHandler = handler; },
     setLocked: (value) => { locked = value; $(".workspace").inert = value; $(".workspace").setAttribute("aria-busy", String(value)); },
     apply: (input) => {
@@ -479,6 +480,7 @@
       lodging = data.lodging;
       state.focusedMovieId = null;
       state.showUnassigned = false;
+      state.activeDay = allDaysKey;
       renderMovieList();
       renderAgenda();
     },
@@ -486,6 +488,7 @@
     notice: say,
   };
   setupSections();
+  if (program.stats && $("#programStatus")) $("#programStatus").innerHTML = `${program.stats.movies} películas · ${program.stats.sessions} sesiones · ${program.stats.movies - program.stats.moviesWithSessions} películas sin pases publicados. <a href="https://sitgesfilmfestival.com/es/edicion/peliculas" target="_blank" rel="noreferrer">Programación oficial</a> consultada el ${new Intl.DateTimeFormat("es-ES").format(new Date(program.fetchedAt))}.`;
   renderMovieList();
   renderAgenda();
   registerWebMcp();

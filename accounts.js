@@ -6,6 +6,16 @@
   const draftKey = (uid) => `sitges-2026-draft:${uid}`;
   const guest = () => window.SitgesData.normalize(read(app.localKey) || app.initialLocal);
   let user = null, cloud = null, sync = null, status = "local", busy = false, loadTimer;
+  const localFile = window.location.protocol === "file:";
+  let enteredUid = null, localEntered = false, authMode = "login", initializing = null;
+  const hasEntered = () => localEntered || Boolean(user && enteredUid === user.uid);
+  const showScreen = () => {
+    const entered = hasEntered();
+    $("#welcomeScreen").hidden = entered;
+    $("#plannerScreen").hidden = !entered;
+    $("#plannerScreen").inert = !entered;
+    $("#backupTools").hidden = !entered;
+  };
   const explainError = (error) => ({
     "auth/invalid-credential": "El correo o la contraseña no son correctos.",
     "auth/wrong-password": "El correo o la contraseña no son correctos.",
@@ -34,7 +44,7 @@
     $("#syncStatus").textContent = error ? explainError(error) : labels[next];
     $("#syncStatus").dataset.state = next;
     $("#accountIdentity").textContent = user?.email || "Agenda de este navegador";
-    const locked = ["loading", "load-error", "conflict"].includes(next);
+    const locked = !hasEntered() || ["loading", "load-error", "conflict"].includes(next);
     app.setLocked(locked);
     $("#preferencesButton").disabled = locked;
     $("#importAgenda").disabled = locked;
@@ -44,14 +54,21 @@
     if (next !== "loading") clearTimeout(loadTimer);
     if (locked && $("#preferencesDialog").open) $("#preferencesDialog").close();
     updateAccount();
+    showScreen();
   };
   const updateAccount = () => {
-    $("#authForm").hidden = Boolean(user) || !window.SitgesCloud.available;
+    $("#authForm").hidden = (Boolean(user) && authMode !== "signup") || !window.SitgesCloud.available;
     $("#signedInActions").hidden = !user;
+    $("#continueSession").hidden = !user || hasEntered();
+    $("#localAccess").hidden = !localFile || hasEntered();
+    $("#accountTitle").textContent = hasEntered() ? "Mi cuenta" : authMode === "signup" ? "Crear cuenta" : "Iniciar sesión";
+    $("#loginButton").textContent = authMode === "signup" ? "Crear cuenta" : "Iniciar sesión";
+    $("#signupButton").textContent = authMode === "signup" ? "Ya tengo cuenta" : "Crear cuenta";
+    $("#authPassword").autocomplete = authMode === "signup" ? "new-password" : "current-password";
     const local = guest();
     $("#copyGuestAgenda").hidden = !user || !(local.selected.length || local.commitments.length || local.lodging.address);
     $("#accountExplanation").textContent = user
-      ? `Has entrado como ${user.email}. Tu agenda pertenece únicamente a esta cuenta.`
+      ? `Sesión de ${user.email}. ${hasEntered() ? "Tu agenda pertenece únicamente a esta cuenta." : "Pulsa «Abrir mi agenda» para continuar, o cierra sesión para usar otra cuenta."}`
       : window.SitgesCloud.available
         ? "Entra con tu correo para recuperar tu agenda en el móvil y el ordenador. Las cuentas nuevas empiezan con una agenda vacía; puedes importar tu selección después."
         : window.SitgesCloud.configured
@@ -59,10 +76,12 @@
           : "Las cuentas todavía no están activadas en esta web. Puedes seguir usando tu agenda local y descargar una copia.";
   };
   app.setPersistence((data) => {
+    if (!hasEntered()) return;
     if (user) sync.change(data);
     else { localStorage.setItem(app.localKey, JSON.stringify(data)); setStatus("local"); }
   });
   const download = () => {
+    if (!hasEntered()) return;
     const blob = new Blob([JSON.stringify({ format: "sitges-agenda", version: 2, exportedAt: new Date().toISOString(), data: app.snapshot() }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -77,6 +96,7 @@
     if (busy) return;
     if (!window.SitgesCloud.available) return;
     const email = $("#authEmail").value.trim();
+    const password = $("#authPassword").value;
     if (!$("#authEmail").reportValidity()) return;
     if (action !== "reset" && !$("#authPassword").reportValidity()) return;
     busy = true;
@@ -90,7 +110,8 @@
         await cloud.reset(email);
         $("#authMessage").textContent = "Si existe una cuenta con ese correo, recibirás instrucciones para restablecer la contraseña.";
       } else {
-        await cloud[action](email, $("#authPassword").value);
+        const credential = await cloud[action](email, password);
+        enterAccount(credential.user);
         $("#authPassword").value = "";
         $("#authMessage").textContent = action === "signup" ? "Cuenta creada. Ya puedes organizar tu agenda personal." : "Sesión iniciada.";
       }
@@ -100,10 +121,42 @@
       $("#authForm").querySelectorAll("button").forEach((button) => { button.disabled = false; });
     }
   };
-  $("#accountButton").addEventListener("click", () => { updateAccount(); $("#accountDialog").showModal(); });
+  const openAccount = (mode) => {
+    if (busy) return;
+    authMode = mode;
+    $("#authMessage").textContent = "";
+    $("#authPassword").value = "";
+    updateAccount();
+    $("#accountDialog").showModal();
+  };
+  const enterAccount = (account) => {
+    if (!account || !sync) return;
+    if (enteredUid !== account.uid) {
+      sync.stop();
+      user = account;
+      enteredUid = account.uid;
+      app.apply(window.SitgesData.empty());
+      sync.start(account.uid);
+      watchLoad();
+    }
+    showScreen();
+    $("#accountDialog").close();
+    $("#accountButton").focus();
+  };
+  $("#welcomeSignup").addEventListener("click", () => openAccount("signup"));
+  $("#welcomeLogin").addEventListener("click", () => openAccount("login"));
+  $("#continueSession").addEventListener("click", () => { if (!busy) enterAccount(user); });
+  $("#openLocalAgenda").addEventListener("click", () => {
+    if (!localFile) return;
+    localEntered = true;
+    app.apply(guest());
+    setStatus("local");
+    $("#accountDialog").close();
+  });
+  $("#accountButton").addEventListener("click", () => openAccount("login"));
   document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.closeDialog}`).close()));
-  $("#authForm").addEventListener("submit", (event) => { event.preventDefault(); void runAuth("login"); });
-  $("#signupButton").addEventListener("click", () => void runAuth("signup"));
+  $("#authForm").addEventListener("submit", (event) => { event.preventDefault(); void runAuth(authMode); });
+  $("#signupButton").addEventListener("click", () => { authMode = authMode === "signup" ? "login" : "signup"; updateAccount(); });
   $("#resetPassword").addEventListener("click", () => void runAuth("reset"));
   $("#logoutButton").addEventListener("click", async () => {
     if (busy) return;
@@ -114,13 +167,14 @@
         return;
       }
       await cloud.logout();
-      $("#authMessage").textContent = "Has cerrado sesión. Ahora ves la agenda local de este navegador.";
+      $("#authMessage").textContent = "Has cerrado sesión. Tu agenda sigue guardada en tu cuenta.";
     } catch (error) { $("#authMessage").textContent = explainError(error); }
     finally { busy = false; }
   });
   ["#exportAgenda", "#exportConflict"].forEach((selector) => $(selector).addEventListener("click", download));
   $("#importAgenda").addEventListener("click", () => $("#backupFile").click());
   $("#backupFile").addEventListener("change", async (event) => {
+    if (!hasEntered()) return;
     const file = event.target.files[0];
     if (!file) return;
     const importingFor = user?.uid || null;
@@ -135,7 +189,7 @@
     finally { event.target.value = ""; }
   });
   $("#copyGuestAgenda").addEventListener("click", () => {
-    if (user && confirm("¿Copiar la agenda de este navegador a tu cuenta? Sustituirá la agenda que tengas guardada en esta cuenta.")) {
+    if (hasEntered() && user && confirm("¿Copiar la agenda de este navegador a tu cuenta? Sustituirá la agenda que tengas guardada en esta cuenta.")) {
       app.replace(guest());
       $("#authMessage").textContent = "Agenda copiada a tu cuenta. Revisa el estado de guardado.";
     }
@@ -147,12 +201,12 @@
     if (confirm("¿Sustituir la agenda de la nube por la versión de este navegador?")) sync.resolve(true);
   });
   const retry = () => {
-    if (!sync || !user) { void initialize(); return; }
+    if (!sync || !user || !hasEntered()) { void initialize(); return; }
     if (sync.revision === null) { sync.start(user.uid); watchLoad(); }
     else void sync.flush();
   };
   $("#retrySync").addEventListener("click", retry);
-  window.addEventListener("online", () => { if (user) retry(); });
+  window.addEventListener("online", () => { if (user && hasEntered()) retry(); });
   window.addEventListener("beforeunload", (event) => {
     if (sync?.hasPending) { event.preventDefault(); event.returnValue = ""; }
   });
@@ -208,8 +262,10 @@
     loadTimer = setTimeout(() => { if (status === "loading") setStatus("load-error"); }, 15000);
   };
   let observing = false;
-  const initialize = async () => {
+  const initialize = () => initializing ||= initializeConnection().finally(() => { initializing = null; });
+  const initializeConnection = async () => {
     if (!window.SitgesCloud.available) { setStatus("local"); return; }
+    if (observing) return;
     setStatus("loading");
     watchLoad();
     try {
@@ -220,16 +276,18 @@
         drafts: { read: (uid) => read(draftKey(uid)), write: (uid, data) => localStorage.setItem(draftKey(uid), JSON.stringify(data)), remove: (uid) => localStorage.removeItem(draftKey(uid)) },
       });
       cloud.observeAuth((nextUser) => {
+        if (nextUser?.uid && nextUser.uid === enteredUid) { user = nextUser; updateAccount(); return; }
         sync.stop();
+        enteredUid = null;
         user = nextUser;
         $("#authPassword").value = "";
-        if (user) {
-          app.apply(window.SitgesData.empty());
-          sync.start(user.uid);
-          watchLoad();
-        } else { app.apply(guest()); setStatus("local"); }
+        app.apply(window.SitgesData.empty());
+        setStatus("local");
+        if ($("#preferencesDialog").open) $("#preferencesDialog").close();
       });
-    } catch (error) { setStatus("load-error", error); }
+    } catch (error) { setStatus("load-error", error); $("#authMessage").textContent = explainError(error); }
   };
+  app.setLocked(true);
+  showScreen();
   void initialize();
 })();

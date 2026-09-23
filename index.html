@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Agenda sin solapes para la programación de Sitges 2026." />
     <title>Agenda Sitges 2026</title>
+    <style>[hidden] { display: none !important; }</style>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315263f'/%3E%3Cpath d='M17 18h30v8H17zm0 14h30v14H17z' fill='%23f7d84a'/%3E%3Cpath d='M25 26v6m14-6v6' stroke='%2315263f' stroke-width='4'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260923-completo" />
   </head>
   <body>
-    <main class="app-shell">
+    <section id="welcomeScreen" class="welcome-screen" aria-label="Acceso a Agenda Sitges 2026">
+      <h1 class="sr-only">Agenda Sitges 2026 · del 8 al 18 de octubre</h1>
+      <img class="welcome-logo" src="assets/logo-sitges.webp" width="1600" height="1600" alt="Sitges · Festival Internacional de Cinema Fantàstic de Catalunya" />
+      <div class="welcome-actions">
+        <button id="welcomeSignup" class="button primary" type="button">Crear cuenta</button>
+        <button id="welcomeLogin" class="button" type="button">Iniciar sesión</button>
+      </div>
+      <noscript>Activa JavaScript en tu navegador para acceder a tu agenda.</noscript>
+    </section>
+    <main id="plannerScreen" class="app-shell" hidden inert>
       <header class="topbar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -18,7 +28,7 @@
             <h1>Mi agenda de películas</h1>
           </div>
         </div>
-        <div class="event-dates">8 — 16 OCT · SITGES</div>
+        <div class="event-dates">8 — 18 OCT · SITGES</div>
       </header>
 
       <section class="account-bar" aria-label="Tu cuenta y guardado">
@@ -63,7 +73,8 @@
             <div>
               <p class="eyebrow">AGENDA PERSONAL</p>
               <h2>Revisión de agenda</h2>
-              <p class="agenda-intro">Tu estancia: del 8 al 16 de octubre. Tú eliges los pases; la agenda te avisa si se cruzan.</p>
+              <p class="agenda-intro">Todo el festival: del 8 al 18 de octubre. Tú eliges los pases; la agenda te avisa si se cruzan.</p>
+              <p id="programStatus" class="results-note"></p>
             </div>
             <div class="agenda-actions">
               <button id="optimizeButton" class="button primary" type="button">Comprobar conflictos</button>
@@ -92,9 +103,10 @@
         <div class="dialog-actions"><button id="loginButton" class="button primary" type="submit">Entrar</button><button id="signupButton" class="button" type="button">Crear cuenta</button></div>
         <button id="resetPassword" class="text-button" type="button">He olvidado mi contraseña</button>
       </form>
-      <div id="signedInActions" hidden><button id="logoutButton" class="button" type="button">Cerrar sesión</button></div>
+      <div id="signedInActions" class="dialog-actions" hidden><button id="continueSession" class="button primary" type="button">Abrir mi agenda</button><button id="logoutButton" class="button" type="button">Cerrar sesión</button></div>
+      <div id="localAccess" hidden><p>Para usar las cuentas abre <a href="https://irreverencia.github.io/Irreverencia/">la web publicada</a>.</p><button id="openLocalAgenda" class="button" type="button">Abrir mi copia local</button></div>
       <p id="authMessage" role="status"></p>
-      <section class="backup-tools" aria-label="Copias de tu agenda">
+      <section id="backupTools" class="backup-tools" aria-label="Copias de tu agenda" hidden>
         <h3>Tu agenda actual</h3><p>Descarga una copia para guardarla o trasladarla desde la aplicación local a la web.</p>
         <div class="dialog-actions"><button id="exportAgenda" class="button" type="button">Descargar copia</button><button id="importAgenda" class="button" type="button">Importar copia</button><button id="copyGuestAgenda" class="button" type="button" hidden>Copiar agenda de este navegador a mi cuenta</button></div>
         <input id="backupFile" type="file" accept="application/json,.json" hidden />
@@ -104,17 +116,17 @@
       <div class="dialog-heading"><h2 id="preferencesTitle">Mis reservas y alojamiento</h2><button type="button" data-close-dialog="preferencesDialog" aria-label="Cerrar">×</button></div>
       <form id="lodgingForm"><label>Dirección de mi alojamiento<input id="lodgingAddress" type="text" maxlength="240" placeholder="Calle, número y localidad" autocomplete="street-address" /></label><button class="button" type="submit">Guardar alojamiento</button><a id="lodgingMapLink" class="text-button" target="_blank" rel="noreferrer" hidden>Ver alojamiento en Google Maps ↗</a></form>
       <h3>Horas que quiero reservar</h3><p>Estas reservas solo afectan a tu agenda.</p><div id="personalCommitments"></div>
-      <form id="commitmentForm" class="commitment-form"><label>Motivo<input id="commitmentLabel" required maxlength="120" placeholder="Comida, descanso…" /></label><label>Día<input id="commitmentDay" type="date" min="2026-10-08" max="2026-10-16" value="2026-10-10" required /></label><label>Desde<input id="commitmentStart" type="time" required /></label><label>Hasta<input id="commitmentEnd" type="time" required /></label><button class="button primary" type="submit">Añadir reserva</button></form>
+      <form id="commitmentForm" class="commitment-form"><label>Motivo<input id="commitmentLabel" required maxlength="120" placeholder="Comida, descanso…" /></label><label>Día<input id="commitmentDay" type="date" min="2026-10-08" max="2026-10-18" value="2026-10-10" required /></label><label>Desde<input id="commitmentStart" type="time" required /></label><label>Hasta<input id="commitmentEnd" type="time" required /></label><button class="button primary" type="submit">Añadir reserva</button></form>
       <p id="preferencesMessage" role="status"></p>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="program.js"></script>
-    <script src="agenda-data.js"></script>
-    <script src="agenda-sync.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="walking-times.js"></script>
-    <script src="app.js"></script>
-    <script src="cloud.js"></script>
-    <script src="accounts.js"></script>
+    <script src="program.js?v=20260923-completo"></script>
+    <script src="agenda-data.js?v=20260923-completo"></script>
+    <script src="agenda-sync.js?v=20260923-completo"></script>
+    <script src="firebase-config.js?v=20260923-completo"></script>
+    <script src="walking-times.js?v=20260923-completo"></script>
+    <script src="app.js?v=20260923-completo"></script>
+    <script src="cloud.js?v=20260923-completo"></script>
+    <script src="accounts.js?v=20260923-completo"></script>
   </body>
 </html>

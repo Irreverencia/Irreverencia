@@ -26,6 +26,11 @@ body {
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 [hidden] { display: none !important; }
+.welcome-screen { min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.8rem; padding: 2rem 1.25rem; background: #fff; }
+.welcome-logo { display: block; width: min(72vw, 440px, 58svh); height: auto; object-fit: contain; }
+.welcome-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: .85rem; }
+.welcome-actions .button { min-width: 160px; min-height: 50px; }
+.shared-session { margin: .4rem 0; font-size: .8rem; color: var(--ink-soft); }
 button:disabled { opacity: .55; cursor: not-allowed; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--violet); outline-offset: 3px; }
 .account-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--white); }

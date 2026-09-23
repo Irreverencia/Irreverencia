@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Agenda sin solapes para la programación de Sitges 2026." />
+    <title>Agenda Sitges 2026</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315263f'/%3E%3Cpath d='M17 18h30v8H17zm0 14h30v14H17z' fill='%23f7d84a'/%3E%3Cpath d='M25 26v6m14-6v6' stroke='%2315263f' stroke-width='4'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <div>
+            <p class="eyebrow">SITGES 2026</p>
+            <h1>Mi agenda de películas</h1>
+          </div>
+        </div>
+        <div class="event-dates">8 — 16 OCT · SITGES</div>
+      </header>
+
+      <section class="workspace" aria-label="Planificador de películas">
+        <aside class="movie-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">SELECCIÓN</p>
+              <h2>Películas que quiero ver</h2>
+            </div>
+            <span id="selectionCount" class="count-chip">0</span>
+          </div>
+
+          <div class="filter-stack">
+            <label class="search-field" for="searchMovies">
+              <span aria-hidden="true">⌕</span>
+              <input id="searchMovies" type="search" placeholder="Buscar por título o dirección" autocomplete="off" />
+            </label>
+            <label class="select-field" for="sectionFilter">
+              <span>Filtrar sección</span>
+              <select id="sectionFilter"></select>
+            </label>
+          </div>
+
+          <p id="movieResults" class="results-note"></p>
+          <div id="movieList" class="movie-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="agenda-panel">
+          <div class="agenda-header">
+            <div>
+              <p class="eyebrow">AGENDA PERSONAL</p>
+              <h2>Revisión de agenda</h2>
+              <p class="agenda-intro">Tu estancia: del 8 al 16 de octubre. Tú eliges los pases; la agenda te avisa si se cruzan.</p>
+            </div>
+            <div class="agenda-actions">
+              <button id="optimizeButton" class="button primary" type="button">Comprobar conflictos</button>
+              <button id="clearButton" class="button quiet" type="button">Limpiar</button>
+            </div>
+          </div>
+
+          <div class="stats" aria-label="Resumen de la agenda">
+            <div><strong id="scheduledCount">0</strong><span>agendadas</span></div>
+            <button id="unassignedStat" class="stat-button" type="button"><strong id="unassignedCount">0</strong><span>sin hueco</span></button>
+            <div><strong id="conflictCount">0</strong><span>conflictos</span></div>
+            <div><strong id="daysCount">0</strong><span>días de festival</span></div>
+          </div>
+
+          <div id="agendaContent" class="agenda-content" aria-live="polite"></div>
+
+        </section>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="program.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

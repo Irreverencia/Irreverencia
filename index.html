@@ -21,6 +21,18 @@
         <div class="event-dates">8 — 16 OCT · SITGES</div>
       </header>
 
+      <section class="account-bar" aria-label="Tu cuenta y guardado">
+        <div><strong id="accountIdentity">Agenda de este navegador</strong><p id="syncStatus" role="status">Guardada en este dispositivo</p></div>
+        <div class="account-actions"><button id="retrySync" class="button quiet" type="button" hidden>Reintentar</button><button id="accountButton" class="button primary" type="button">Mi cuenta</button><button id="preferencesButton" class="button quiet" type="button">Mis reservas y alojamiento</button></div>
+      </section>
+      <section id="syncConflict" class="sync-conflict" role="alert" hidden>
+        <strong>Tu agenda ha cambiado en otro dispositivo</strong>
+        <p>Tus cambios están conservados en este navegador. Elige qué versión quieres mantener.</p>
+        <button id="useCloudAgenda" class="button" type="button">Usar la agenda de la nube</button>
+        <button id="useLocalAgenda" class="button" type="button">Guardar esta versión</button>
+        <button id="exportConflict" class="button" type="button">Descargar mi copia</button>
+      </section>
+
       <section class="workspace" aria-label="Planificador de películas">
         <aside class="movie-panel">
           <div class="panel-heading">
@@ -71,8 +83,38 @@
         </section>
       </section>
     </main>
+    <dialog id="accountDialog" aria-labelledby="accountTitle">
+      <div class="dialog-heading"><h2 id="accountTitle">Mi cuenta</h2><button type="button" data-close-dialog="accountDialog" aria-label="Cerrar">×</button></div>
+      <p id="accountExplanation">Entra con tu correo para recuperar tu agenda en el móvil y el ordenador.</p>
+      <form id="authForm">
+        <label>Correo electrónico<input id="authEmail" type="email" autocomplete="username" required maxlength="254" /></label>
+        <label>Contraseña<input id="authPassword" type="password" autocomplete="current-password" required minlength="8" maxlength="128" /></label>
+        <div class="dialog-actions"><button id="loginButton" class="button primary" type="submit">Entrar</button><button id="signupButton" class="button" type="button">Crear cuenta</button></div>
+        <button id="resetPassword" class="text-button" type="button">He olvidado mi contraseña</button>
+      </form>
+      <div id="signedInActions" hidden><button id="logoutButton" class="button" type="button">Cerrar sesión</button></div>
+      <p id="authMessage" role="status"></p>
+      <section class="backup-tools" aria-label="Copias de tu agenda">
+        <h3>Tu agenda actual</h3><p>Descarga una copia para guardarla o trasladarla desde la aplicación local a la web.</p>
+        <div class="dialog-actions"><button id="exportAgenda" class="button" type="button">Descargar copia</button><button id="importAgenda" class="button" type="button">Importar copia</button><button id="copyGuestAgenda" class="button" type="button" hidden>Copiar agenda de este navegador a mi cuenta</button></div>
+        <input id="backupFile" type="file" accept="application/json,.json" hidden />
+      </section>
+    </dialog>
+    <dialog id="preferencesDialog" aria-labelledby="preferencesTitle">
+      <div class="dialog-heading"><h2 id="preferencesTitle">Mis reservas y alojamiento</h2><button type="button" data-close-dialog="preferencesDialog" aria-label="Cerrar">×</button></div>
+      <form id="lodgingForm"><label>Dirección de mi alojamiento<input id="lodgingAddress" type="text" maxlength="240" placeholder="Calle, número y localidad" autocomplete="street-address" /></label><button class="button" type="submit">Guardar alojamiento</button><a id="lodgingMapLink" class="text-button" target="_blank" rel="noreferrer" hidden>Ver alojamiento en Google Maps ↗</a></form>
+      <h3>Horas que quiero reservar</h3><p>Estas reservas solo afectan a tu agenda.</p><div id="personalCommitments"></div>
+      <form id="commitmentForm" class="commitment-form"><label>Motivo<input id="commitmentLabel" required maxlength="120" placeholder="Comida, descanso…" /></label><label>Día<input id="commitmentDay" type="date" min="2026-10-08" max="2026-10-16" value="2026-10-10" required /></label><label>Desde<input id="commitmentStart" type="time" required /></label><label>Hasta<input id="commitmentEnd" type="time" required /></label><button class="button primary" type="submit">Añadir reserva</button></form>
+      <p id="preferencesMessage" role="status"></p>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="program.js"></script>
+    <script src="agenda-data.js"></script>
+    <script src="agenda-sync.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="walking-times.js"></script>
     <script src="app.js"></script>
+    <script src="cloud.js"></script>
+    <script src="accounts.js"></script>
   </body>
 </html>

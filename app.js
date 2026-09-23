@@ -3,12 +3,12 @@
   if (!program?.movies?.length) return;
 
   const $ = (selector) => document.querySelector(selector);
-  const storageKey = "sitges-2026-agenda-v1";
+  const storageKey = "sitges-2026-agenda-local-v2";
   const travelDays = ["2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"];
   const allDaysKey = "all";
-  const commitments = [
-    { id: "comida-sabado", label: "Comida", start: "2026-10-10T14:15:00+02:00", end: "2026-10-10T16:15:00+02:00" },
-  ];
+  let commitments = [];
+  let lodging = { address: "" };
+  let locked = false;
   const isTravelSession = (session) => travelDays.includes(session.start.slice(0, 10));
   const movies = program.movies
     .map((movie) => ({ ...movie, sessions: movie.sessions.filter(isTravelSession) }))
@@ -24,8 +24,10 @@
   ];
   const homeOnMap = { name: "Tu alojamiento", mapX: 1662, mapY: 255 };
   const persisted = (() => {
-    try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
+    try { return window.SitgesData.migrateLegacy(JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem("sitges-2026-agenda-v1") || "{}")); } catch { return window.SitgesData.empty(); }
   })();
+  commitments = persisted.commitments;
+  lodging = persisted.lodging;
   const state = {
     selected: new Set((persisted.selected || []).filter((id) => movieById.has(id))),
     agenda: new Map(Object.entries(persisted.agenda || {}).filter(([id, sessionId]) => movieById.get(id)?.sessions.some((session) => session.id === sessionId))),
@@ -52,7 +54,12 @@
   const overlaps = (a, b) => timeValue(a.start) < timeValue(b.end) && timeValue(b.start) < timeValue(a.end);
   const getSession = (movieId, sessionId) => movieById.get(movieId)?.sessions.find((session) => session.id === sessionId);
   const conflictingCommitment = (session) => commitments.find((commitment) => overlaps(session, commitment));
-  const persist = () => localStorage.setItem(storageKey, JSON.stringify({ selected: [...state.selected], agenda: Object.fromEntries(state.agenda) }));
+  const snapshot = () => window.SitgesData.normalize({ selected: [...state.selected], agenda: Object.fromEntries(state.agenda), commitments, lodging });
+  let persistHandler = (data) => localStorage.setItem(storageKey, JSON.stringify(data));
+  const persist = () => {
+    if (locked) return;
+    try { persistHandler(snapshot()); } catch { say("No se ha podido guardar. Descarga una copia de tu agenda desde Mi cuenta."); }
+  };
   const say = (message) => {
     toast.textContent = message;
     toast.classList.add("visible");
@@ -163,7 +170,8 @@
       const from = venueById(venueForLocation(previous.session.location));
       const to = venueById(venueForLocation(item.session.location));
       if (!from || !to || from.id === to.id) return null;
-      return { from, to, previous, item };
+      const timing = window.SitgesWalking?.transfer(from.id, to.id, previous.session.end, item.session.start);
+      return { from, to, previous, item, timing };
     }).filter(Boolean);
     const cardsHtml = (items) => items.length ? items.map(({ movie, session }) => {
       const conflicts = conflictMap.get(movie.id) || [];
@@ -179,7 +187,22 @@
     const routesHtml = (items) => {
       const routes = walkingRoutesFor(items);
       if (!items.length) return "";
-      return `<section class="walking-routes" aria-label="Rutas a pie entre cines"><h4>Rutas a pie entre cines</h4>${routes.length ? `<div class="walking-route-list">${routes.map(({ from, to, previous, item }) => `<div class="walking-route"><span><strong>${escapeHtml(from.name)}</strong><small>Tras ${escapeHtml(previous.movie.title)} · ${timeOf(previous.session.end)}</small></span><span class="route-arrow" aria-hidden="true">→</span><span><strong>${escapeHtml(to.name)}</strong><small>Para ${escapeHtml(item.movie.title)} · ${timeOf(item.session.start)}</small></span><a href="${googleWalkingRouteUrl(from, to)}" target="_blank" rel="noreferrer">Ver ruta a pie ↗</a></div>`).join("")}</div>` : `<p>Hoy no necesitas desplazarte entre cines para las películas agendadas.</p>`}</section>`;
+      const routeCards = routes.map(({ from, to, previous, item, timing }) => {
+        const distance = timing?.distanceMeters == null ? "" : ` · ${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(timing.distanceMeters / 1000)} km`;
+        const gap = timing && (timing.gapMinutes < 0 ? `Las películas se solapan ${Math.abs(timing.gapMinutes)} min.` : `${timing.gapMinutes} min entre películas.`);
+        const margin = timing && (timing.status === "conflict"
+          ? `⚠ No da tiempo al traslado: faltan ${Math.abs(timing.marginMinutes)} min. Cambia un pase manualmente.`
+          : timing.status === "tight" ? "⚠ Llegarías justo al inicio, sin margen."
+          : `Te quedarían ${timing.marginMinutes} min de margen tras caminar.`);
+        return `<div class="walking-route${timing ? ` route-${timing.status}` : ""}">
+          <span><strong>${escapeHtml(from.name)}</strong><small>Tras ${escapeHtml(previous.movie.title)} · ${timeOf(previous.session.end)}</small></span>
+          <span class="route-arrow" aria-hidden="true">→</span>
+          <span><strong>${escapeHtml(to.name)}</strong><small>Para ${escapeHtml(item.movie.title)} · ${timeOf(item.session.start)}</small></span>
+          <a href="${googleWalkingRouteUrl(from, to)}" target="_blank" rel="noreferrer">Ver ruta a pie ↗</a>
+          <div class="route-timing">${timing ? `<strong class="route-duration">≈ ${timing.minutes} min ${timing.withinMelia ? "para cambiar de sala en el Meliá" : `a pie${distance}`}</strong><span>${gap}</span><span class="route-margin">${margin}</span>` : `<span>Tiempo a pie no disponible. Consulta la ruta en Google Maps.</span>`}</div>
+        </div>`;
+      }).join("");
+      return `<section class="walking-routes" aria-label="Rutas a pie entre cines"><h4>Rutas a pie entre cines</h4>${routes.length ? `<div class="walking-route-list">${routeCards}</div><p class="walking-estimate-note">Tiempos aproximados, sin colas ni acceso a la sala. Entre las dos salas del Meliá se reservan 5 min orientativos. Los demás recorridos usan rutas peatonales guardadas el 23/09/2026 de <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noreferrer">OSRM/FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">Corregir el mapa</a>. No se cambian tus pases automáticamente.</p>` : `<p>Hoy no necesitas desplazarte entre cines para las películas agendadas.</p>`}</section>`;
     };
     const unassignedPanelHtml = state.showUnassigned && unassigned.length ? `<section id="unassignedPanel" class="unassigned-panel" aria-labelledby="unassignedTitle"><div class="unassigned-heading"><div><p class="eyebrow">PELÍCULAS SIN HUECO</p><h3 id="unassignedTitle">Elige un nuevo día y pase</h3><p>Estas películas siguen seleccionadas, pero no están en ningún día de tu agenda.</p></div><button class="close-unassigned" type="button" data-close-unassigned>Cerrar</button></div><div class="unassigned-list">${unassigned.map((movie) => {
       const options = compatibleSessionsFor(movie);
@@ -295,7 +318,7 @@
       const textAnchor = isRightEdge ? "end" : "start";
       return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="6" text-anchor="${textAnchor}">${escapeHtml(labels[venue.id] || venue.name)}</text></g>`;
     }).join("");
-    const home = `<g class="saved-map-home" transform="translate(${homeOnMap.mapX} ${homeOnMap.mapY})"><circle r="15"/><path d="M-7 0 0-7 7 0V8H3V3H-3V8H-7Z"/><text x="20" y="6">${escapeHtml(homeOnMap.name)}</text></g>`;
+    const home = /devesa.*22/i.test(lodging.address) ? `<g class="saved-map-home" transform="translate(${homeOnMap.mapX} ${homeOnMap.mapY})"><circle r="15"/><path d="M-7 0 0-7 7 0V8H3V3H-3V8H-7Z"/><text x="20" y="6">${escapeHtml(homeOnMap.name)}</text></g>` : "";
     target.innerHTML = `<div class="saved-map-image-wrap"><img class="saved-map-image" src="assets/mapa-sitges-openstreetmap.png" alt="Mapa de Sitges con la ubicación de las salas de proyección y del alojamiento" /><svg class="saved-map-overlay" viewBox="0 0 2072 745" aria-hidden="true" focusable="false">${route}${markers}${home}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div>`;
   };
   const renderMapForActiveDay = () => {
@@ -425,6 +448,7 @@
         inputSchema: { type: "object", properties: { movieIds: { type: "array", items: { type: "string" }, minItems: 1 } }, required: ["movieIds"], additionalProperties: false },
         annotations: { readOnlyHint: false, untrustedContentHint: false },
         execute: (input) => {
+          if (locked) throw new Error("Espera a que se cargue tu cuenta antes de modificar la agenda.");
           const ids = input?.movieIds;
           if (!Array.isArray(ids) || !ids.every((id) => movieById.has(id))) throw new Error("La selección incluye una película desconocida.");
           state.selected = new Set(ids);
@@ -441,9 +465,27 @@
     } catch { /* WebMCP is optional for ordinary browsers. */ }
   };
 
+  window.SitgesAgenda = {
+    snapshot,
+    localKey: storageKey,
+    initialLocal: snapshot(),
+    setPersistence: (handler) => { persistHandler = handler; },
+    setLocked: (value) => { locked = value; $(".workspace").inert = value; $(".workspace").setAttribute("aria-busy", String(value)); },
+    apply: (input) => {
+      const data = window.SitgesData.normalize(input);
+      state.selected = new Set(data.selected.filter((id) => movieById.has(id)));
+      state.agenda = new Map(Object.entries(data.agenda).filter(([id, sessionId]) => state.selected.has(id) && getSession(id, sessionId)));
+      commitments = data.commitments;
+      lodging = data.lodging;
+      state.focusedMovieId = null;
+      state.showUnassigned = false;
+      renderMovieList();
+      renderAgenda();
+    },
+    replace: (input) => { if (locked) throw new Error("Espera a que se cargue tu agenda."); window.SitgesAgenda.apply(input); persist(); },
+    notice: say,
+  };
   setupSections();
-  ensureSessionsForSelectedMovies();
-  persist();
   renderMovieList();
   renderAgenda();
   registerWebMcp();

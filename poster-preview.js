@@ -18,8 +18,9 @@
     const subtitle = document.createElement('p'); subtitle.className = 'poster-preview-meta'; subtitle.textContent = `${movie.duration || '—'} min · ${movie.sections.join(' · ')}`;
     const synopsis = document.createElement('p'); synopsis.textContent = movie.synopsis || 'Sinopsis no publicada por el festival.';
     const source = document.createElement('a'); source.textContent = 'Ficha y sinopsis oficial ↗'; source.href = movie.officialUrl; source.target = '_blank'; source.rel = 'noreferrer';
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'poster-preview-close'; close.textContent = '×'; close.setAttribute('aria-label', 'Cerrar póster y sinopsis'); close.addEventListener('click', hide);
     copy.append(title, subtitle, synopsis, source);
-    preview.replaceChildren(image, copy);
+    preview.replaceChildren(close, image, copy);
     wrapper.setAttribute('aria-describedby', 'posterPreview');
     preview.hidden = false;
     const natural = wrapper.querySelector('img')?.naturalWidth || 291;
@@ -37,6 +38,9 @@
   preview.addEventListener('pointerenter', () => clearTimeout(timer));
   preview.addEventListener('pointerleave', later);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+  document.addEventListener('pointerdown', e => {
+    if (!preview.hidden && !preview.contains(e.target) && !anchor?.contains(e.target)) hide();
+  });
   window.addEventListener('scroll', event => {
     // On mobile the columns scroll independently; scrolling the synopsis itself must remain possible.
     if (event.target instanceof Node && preview.contains(event.target)) return;

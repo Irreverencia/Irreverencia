@@ -9,6 +9,7 @@
   let commitments = [];
   let lodging = { address: "" };
   let locked = false;
+  let exportIdentity = null;
   const isTravelSession = (session) => travelDays.includes(session.start.slice(0, 10));
   const festivalTime = (value) => /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}+02:00`;
   const movies = program.movies
@@ -34,6 +35,7 @@
     agenda: new Map(),
     query: "",
     section: "all",
+    venue: "all",
     activeDay: allDaysKey,
     focusedMovieId: null,
     showUnassigned: false,
@@ -69,14 +71,24 @@
     toastTimer = setTimeout(() => toast.classList.remove("visible"), 3200);
   };
 
+  const keepPosition = (render) => {
+    const x = window.scrollX || 0, y = window.scrollY || 0;
+    const focusedMovie = document.activeElement?.dataset?.movieId;
+    render();
+    const restore = () => {
+      if (focusedMovie) list.querySelector?.(`[data-movie-id="${focusedMovie}"]`)?.focus({ preventScroll: true });
+      window.scrollTo?.({ left: x, top: y, behavior: "instant" });
+    };
+    restore(); requestAnimationFrame(restore);
+  };
   const plannedItems = () => [...state.agenda.entries()]
     .map(([movieId, sessionId]) => ({ movie: movieById.get(movieId), session: getSession(movieId, sessionId) }))
     .filter((item) => item.movie && item.session)
     .sort((a, b) => timeValue(a.session.start) - timeValue(b.session.start));
 
   const defaultSessionFor = (movie) => {
-    const sessionsForDay = state.activeDay === allDaysKey ? movie.sessions : movie.sessions.filter((session) => dateOf(session.start) === state.activeDay);
-    return [...(sessionsForDay.length ? sessionsForDay : movie.sessions)].filter(schedulable).sort((a, b) => timeValue(a.start) - timeValue(b.start))[0];
+    const sessionsForDay = movie.sessions.filter((session) => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (state.venue === "all" || session.location === state.venue));
+    return [...sessionsForDay].filter(schedulable).sort((a, b) => timeValue(a.start) - timeValue(b.start))[0];
   };
   const ensureSessionsForSelectedMovies = () => {
     state.selected.forEach((movieId) => {
@@ -124,21 +136,21 @@
     const visible = movies.filter((movie) => {
       const inText = [movie.title, movie.originalTitle, ...movie.directors].join(" ").toLocaleLowerCase("es").includes(query);
       const inSection = state.section === "all" || movie.sections.includes(state.section) || movie.inclusion.includes(state.section);
-      const inActiveDay = state.activeDay === allDaysKey || movie.sessions.some((session) => dateOf(session.start) === state.activeDay);
-      return inText && inSection && inActiveDay;
+      const inScope = state.activeDay === allDaysKey && state.venue === "all" || movie.sessions.some((session) => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (state.venue === "all" || session.location === state.venue));
+      return inText && inSection && inScope;
     });
     const scope = state.activeDay === allDaysKey ? "del catálogo del 8 al 18 de octubre" : `para ${shortDay(`${state.activeDay}T12:00:00`)}`;
     results.textContent = `${visible.length} películas ${scope} · marca las que quieres ver`;
     count.textContent = state.selected.size;
     const sessionsText = (movie) => {
-      const sessions = movie.sessions.filter((session) => state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay);
-      if (!sessions.length) return "Pases pendientes de publicación";
+      const sessions = movie.sessions.filter((session) => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (state.venue === "all" || session.location === state.venue));
+      if (!sessions.length) return movie.archived ? "No figura en el catálogo actual · sin pase confirmado" : "Pases pendientes de publicación";
       return sessions.map((session) => `${state.activeDay === allDaysKey ? `${shortDay(session.start)} · ` : ""}${timeOf(session.start)}${session.unconfirmedDuration ? " (fin pendiente de confirmar; aún no agendable)" : ""}`).join(" · ");
     };
     list.innerHTML = visible.map((movie) => `
       <label class="movie-card">
         <input type="checkbox" data-movie-id="${movie.id}" ${state.selected.has(movie.id) ? "checked" : ""} />
-        ${movie.posterUrl ? `<span class="poster-wrap" tabindex="0"><img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" /><img class="poster-zoom" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="" aria-hidden="true" /></span>` : `<span class="poster-fallback" aria-hidden="true">SIN<br>PÓSTER</span>`}
+        <span class="poster-wrap" tabindex="0" data-poster-id="${movie.id}" aria-label="Ver póster y sinopsis de ${escapeHtml(movie.title)}">${movie.posterUrl ? `<img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" />` : `<span class="poster-fallback">SIN<br>PÓSTER</span>`}</span>
         <span>
           <span class="movie-title">${escapeHtml(movie.title)}</span>
           <span class="movie-meta">${movie.duration || "—"} min · ${movie.sessions.length} ${movie.sessions.length === 1 ? "pase" : "pases"}${movie.directors.length ? ` · ${escapeHtml(movie.directors.join(" · "))}` : ""}</span>
@@ -284,6 +296,8 @@
   const setupSections = () => {
     const options = [...new Set(movies.flatMap((movie) => movie.sections).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
     $("#sectionFilter").innerHTML = `<option value="all">Todas las secciones</option>${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}`;
+    const locations = [...new Set(movies.flatMap((movie) => movie.sessions.map(s => s.location)))].sort((a, b) => a.localeCompare(b, "es"));
+    $("#venueFilter").innerHTML = `<option value="all">Todas las salas</option>${locations.map(location => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`).join("")}`;
   };
   const venueForLocation = (location) => {
     if (location.includes("Llevant")) return "llevant";
@@ -370,6 +384,7 @@
 
   $("#searchMovies").addEventListener("input", (event) => { state.query = event.target.value; renderMovieList(); });
   $("#sectionFilter").addEventListener("change", (event) => { state.section = event.target.value; renderMovieList(); });
+  $("#venueFilter").addEventListener("change", (event) => { state.venue = event.target.value; renderMovieList(); });
   list.addEventListener("load", (event) => {
     if (!event.target.matches(".movie-poster")) return;
     const wrapper = event.target.closest(".poster-wrap");
@@ -384,15 +399,15 @@
       const session = defaultSessionFor(movieById.get(id));
       if (session) state.agenda.set(id, session.id);
       state.focusedMovieId = id;
-      if (session) state.activeDay = dateOf(session.start);
     } else {
       state.selected.delete(id);
       state.agenda.delete(id);
       state.focusedMovieId = null;
     }
+    state.showUnassigned = false;
     persist();
-    renderMovieList();
-    renderAgenda();
+    count.textContent = state.selected.size;
+    keepPosition(renderAgenda);
     const conflicts = conflictsByMovie();
     if (event.target.checked && conflicts.has(id)) say("⚠️ Esta selección crea un conflicto. Está marcado en rojo para que elijas otro pase.");
   });
@@ -468,27 +483,38 @@
 
   window.SitgesAgenda = {
     snapshot,
+    setExportIdentity: (identity) => { exportIdentity = identity; },
+    getExportIdentity: () => exportIdentity,
+    exportSelection: () => {
+      if (!exportIdentity) throw new Error("Entra en tu cuenta para exportar tu agenda.");
+      const conflicts = conflictsByMovie();
+      return {
+        owner: exportIdentity, generatedAt: new Date().toISOString(), sourceDate: program.fetchedAt,
+        movies: [...state.selected].map((id) => {
+          const movie = movieById.get(id), session = getSession(id, state.agenda.get(id));
+          return { ...movie, session: session || null, venue: session ? venueById(venueForLocation(session.location)) || null : null, conflicts: conflicts.get(id) || [] };
+        }).sort((a, b) => (a.session ? timeValue(a.session.start) : Infinity) - (b.session ? timeValue(b.session.start) : Infinity) || a.title.localeCompare(b.title, "es")),
+      };
+    },
     localKey: storageKey,
     initialLocal: persisted,
     setPersistence: (handler) => { persistHandler = handler; },
     setLocked: (value) => { locked = value; $(".workspace").inert = value; $(".workspace").setAttribute("aria-busy", String(value)); },
-    apply: (input) => {
+    apply: (input, { preserveView = false } = {}) => {
       const data = window.SitgesData.normalize(input);
       state.selected = new Set(data.selected.filter((id) => movieById.has(id)));
       state.agenda = new Map(Object.entries(data.agenda).filter(([id, sessionId]) => state.selected.has(id) && getSession(id, sessionId)));
       commitments = data.commitments;
       lodging = data.lodging;
-      state.focusedMovieId = null;
-      state.showUnassigned = false;
-      state.activeDay = allDaysKey;
-      renderMovieList();
-      renderAgenda();
+      if (!preserveView) { state.focusedMovieId = null; state.showUnassigned = false; state.activeDay = allDaysKey; }
+      const render = () => { renderMovieList(); renderAgenda(); };
+      if (preserveView) keepPosition(render); else render();
     },
     replace: (input) => { if (locked) throw new Error("Espera a que se cargue tu agenda."); window.SitgesAgenda.apply(input); persist(); },
     notice: say,
   };
   setupSections();
-  if (program.stats && $("#programStatus")) $("#programStatus").innerHTML = `${program.stats.movies} películas · ${program.stats.sessions} sesiones · ${program.stats.movies - program.stats.moviesWithSessions} películas sin pases publicados. <a href="https://sitgesfilmfestival.com/es/edicion/peliculas" target="_blank" rel="noreferrer">Programación oficial</a> consultada el ${new Intl.DateTimeFormat("es-ES").format(new Date(program.fetchedAt))}.`;
+  if (program.stats && $("#programStatus")) $("#programStatus").innerHTML = `${program.stats.currentMovies || program.stats.movies} fichas del catálogo oficial · ${program.stats.sessions} sesiones${program.stats.retainedMovies ? ` · ${program.stats.retainedMovies} fichas anteriores conservadas sin pase confirmado` : ""}. <a href="https://sitgesfilmfestival.com/es/edicion/peliculas" target="_blank" rel="noreferrer">Programación oficial</a> revisada el ${new Intl.DateTimeFormat("es-ES").format(new Date(program.fetchedAt))}.`;
   renderMovieList();
   renderAgenda();
   registerWebMcp();

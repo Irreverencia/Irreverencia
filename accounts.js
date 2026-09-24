@@ -3,7 +3,24 @@
   if (!app) return;
   const $ = (selector) => document.querySelector(selector);
   const read = (key) => { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; } };
-  const draftKey = (uid) => `sitges-2026-draft:${uid}`;
+  const browserStore = new window.AgendaStorage({
+    getItem: (key) => localStorage.getItem(key),
+    setItem: (key, value) => localStorage.setItem(key, value),
+    removeItem: (key) => localStorage.removeItem(key),
+  }, window.SitgesData.normalize);
+  let localStorageFailed = false;
+  const storageIssue = () => {
+    localStorageFailed = true;
+    $("#localSaveStatus").dataset.state = "load-error";
+    $("#localSaveStatus").textContent = "No se puede guardar la copia en este navegador. Permite el almacenamiento o descarga una copia; comprueba también el estado de la nube.";
+  };
+  const storeRecord = (uid, record, draft = false) => {
+    browserStore.write(uid, record, draft);
+    if (!localStorageFailed) {
+      $("#localSaveStatus").dataset.state = "saved";
+      $("#localSaveStatus").textContent = "Copia automática guardada en este navegador para esta cuenta.";
+    }
+  };
   const guest = () => window.SitgesData.normalize(read(app.localKey) || app.initialLocal);
   let user = null, cloud = null, sync = null, status = "local", busy = false, loadTimer;
   const localFile = window.location.protocol === "file:";
@@ -11,10 +28,15 @@
   const hasEntered = () => localEntered || Boolean(user && enteredUid === user.uid);
   const showScreen = () => {
     const entered = hasEntered();
+    app.setExportIdentity(entered ? user?.uid || "local" : null);
     $("#welcomeScreen").hidden = entered;
     $("#plannerScreen").hidden = !entered;
     $("#plannerScreen").inert = !entered;
     $("#backupTools").hidden = !entered;
+    if (!entered) {
+      if ($("#programDialog")?.open) $("#programDialog").close();
+      if ($("#posterPreview")) $("#posterPreview").hidden = true;
+    }
   };
   const explainError = (error) => ({
     "auth/invalid-credential": "El correo o la contraseña no son correctos.",
@@ -34,11 +56,11 @@
     const labels = {
       local: "Guardada en este dispositivo",
       loading: "Cargando tu agenda privada…",
-      "load-error": "No se ha podido cargar tu agenda. Reintenta para poder editarla.",
+      "load-error": sync?.hasLocalCopy ? "Mostrando la última copia de este navegador, solo para consulta. Reintenta la conexión para editar sin sobrescribir otra versión." : "No se ha podido cargar tu agenda. Reintenta para poder editarla.",
       pending: "Cambios pendientes de guardar",
       saving: "Guardando tu agenda…",
-      saved: "Agenda guardada en tu cuenta",
-      offline: "Cambios conservados en este navegador · pendientes de sincronizar",
+      saved: "Agenda sincronizada con tu cuenta",
+      offline: "Sin conexión con la nube · cambios pendientes de sincronizar",
       conflict: "Revisa las dos versiones de tu agenda",
     };
     $("#syncStatus").textContent = error ? explainError(error) : labels[next];
@@ -272,14 +294,19 @@
       cloud ||= await window.SitgesCloud.connect();
       if (observing) return;
       observing = true;
-      sync = new window.AgendaSync({ backend: cloud, onData: (data) => app.apply(data), onStatus: setStatus,
-        drafts: { read: (uid) => read(draftKey(uid)), write: (uid, data) => localStorage.setItem(draftKey(uid), JSON.stringify(data)), remove: (uid) => localStorage.removeItem(draftKey(uid)) },
+      sync = new window.AgendaSync({ backend: cloud, onData: (data) => app.apply(data, { preserveView: true }), onStatus: setStatus, onStorageError: storageIssue,
+        drafts: { read: (uid) => browserStore.read(uid, true), write: (uid, data) => storeRecord(uid, data, true), remove: (uid) => browserStore.removeDraft(uid) },
+        cache: { read: (uid) => browserStore.read(uid), write: (uid, data) => storeRecord(uid, data) },
       });
       cloud.observeAuth((nextUser) => {
         if (nextUser?.uid && nextUser.uid === enteredUid) { user = nextUser; updateAccount(); return; }
         sync.stop();
         enteredUid = null;
         user = nextUser;
+        if (!localStorageFailed) {
+          $("#localSaveStatus").dataset.state = "";
+          $("#localSaveStatus").textContent = "Copia automática por cuenta en este navegador.";
+        }
         $("#authPassword").value = "";
         app.apply(window.SitgesData.empty());
         setStatus("local");

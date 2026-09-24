@@ -7,12 +7,13 @@
     <title>Agenda Sitges 2026</title>
     <style>[hidden] { display: none !important; }</style>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315263f'/%3E%3Cpath d='M17 18h30v8H17zm0 14h30v14H17z' fill='%23f7d84a'/%3E%3Cpath d='M25 26v6m14-6v6' stroke='%2315263f' stroke-width='4'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="styles.css?v=20260923-completo" />
+    <link rel="stylesheet" href="styles.css?v=20260924-cuadro" />
   </head>
   <body>
     <section id="welcomeScreen" class="welcome-screen" aria-label="Acceso a Agenda Sitges 2026">
       <h1 class="sr-only">Agenda Sitges 2026 · del 8 al 18 de octubre</h1>
       <img class="welcome-logo" src="assets/logo-sitges.webp" width="1600" height="1600" alt="Sitges · Festival Internacional de Cinema Fantàstic de Catalunya" />
+      <p class="welcome-year">2026</p>
       <div class="welcome-actions">
         <button id="welcomeSignup" class="button primary" type="button">Crear cuenta</button>
         <button id="welcomeLogin" class="button" type="button">Iniciar sesión</button>
@@ -32,7 +33,7 @@
       </header>
 
       <section class="account-bar" aria-label="Tu cuenta y guardado">
-        <div><strong id="accountIdentity">Agenda de este navegador</strong><p id="syncStatus" role="status">Guardada en este dispositivo</p></div>
+        <div><strong id="accountIdentity">Agenda de este navegador</strong><p id="syncStatus" role="status">Guardada en este dispositivo</p><p id="localSaveStatus" role="status">Copia automática por cuenta en este navegador.</p></div>
         <div class="account-actions"><button id="retrySync" class="button quiet" type="button" hidden>Reintentar</button><button id="accountButton" class="button primary" type="button">Mi cuenta</button><button id="preferencesButton" class="button quiet" type="button">Mis reservas y alojamiento</button></div>
       </section>
       <section id="syncConflict" class="sync-conflict" role="alert" hidden>
@@ -62,6 +63,7 @@
               <span>Filtrar sección</span>
               <select id="sectionFilter"></select>
             </label>
+            <label class="select-field" for="venueFilter"><span>Filtrar sala</span><select id="venueFilter"></select></label>
           </div>
 
           <p id="movieResults" class="results-note"></p>
@@ -79,6 +81,8 @@
             <div class="agenda-actions">
               <button id="optimizeButton" class="button primary" type="button">Comprobar conflictos</button>
               <button id="clearButton" class="button quiet" type="button">Limpiar</button>
+              <button id="viewProgramButton" class="button quiet" type="button">Ver cuadro</button>
+              <button id="exportExcelButton" class="button quiet" type="button">Exportar a Excel</button>
             </div>
           </div>
 
@@ -94,6 +98,20 @@
         </section>
       </section>
     </main>
+    <dialog id="programDialog" class="program-dialog" aria-labelledby="programTitle">
+      <div class="dialog-heading"><h2 id="programTitle">Cuadro completo del festival</h2><button type="button" data-close-dialog="programDialog" aria-label="Cerrar cuadro">×</button></div>
+      <div class="program-controls">
+        <label>Día <select id="programDayFilter"></select></label>
+        <label>Sala <select id="programVenueFilter"></select></label>
+        <label>Tamaño <select id="programScale"><option value="1">Normal</option><option value="0.75">Compacto</option><option value="1.35">Ampliado</option></select></label>
+      </div>
+      <p id="programGridSummary" class="program-grid-note"></p>
+      <p class="program-grid-note">Horas de Sitges. Desliza el cuadro en horizontal para recorrer los días y pulsa un pase para ver sus películas. El borde verde marca tus pases elegidos. Consultar el cuadro no modifica tu agenda.</p>
+      <div id="programGrid" class="program-grid-scroll" tabindex="0" aria-label="Cuadrícula de horarios por día y sala"></div>
+      <section id="programDetails" class="program-details" aria-live="polite" hidden></section>
+      <details class="program-pending"><summary id="programPendingTitle">Películas sin pase publicado</summary><div id="programPending"></div></details>
+    </dialog>
+    <div id="posterPreview" class="poster-preview" role="tooltip" hidden></div>
     <dialog id="accountDialog" aria-labelledby="accountTitle">
       <div class="dialog-heading"><h2 id="accountTitle">Mi cuenta</h2><button type="button" data-close-dialog="accountDialog" aria-label="Cerrar">×</button></div>
       <p id="accountExplanation">Entra con tu correo para recuperar tu agenda en el móvil y el ordenador.</p>
@@ -107,7 +125,7 @@
       <div id="localAccess" hidden><p>Para usar las cuentas abre <a href="https://irreverencia.github.io/Irreverencia/">la web publicada</a>.</p><button id="openLocalAgenda" class="button" type="button">Abrir mi copia local</button></div>
       <p id="authMessage" role="status"></p>
       <section id="backupTools" class="backup-tools" aria-label="Copias de tu agenda" hidden>
-        <h3>Tu agenda actual</h3><p>Descarga una copia para guardarla o trasladarla desde la aplicación local a la web.</p>
+        <h3>Tu agenda actual</h3><p>Tu agenda se guarda automáticamente en este navegador, separada por cuenta, y se sincroniza con Firebase. La copia local permanece al cerrar sesión; no está cifrada y se puede perder si borras los datos del navegador o usas navegación privada. No uses esta opción en dispositivos compartidos para datos sensibles.</p><p>También puedes descargar una copia de seguridad.</p>
         <div class="dialog-actions"><button id="exportAgenda" class="button" type="button">Descargar copia</button><button id="importAgenda" class="button" type="button">Importar copia</button><button id="copyGuestAgenda" class="button" type="button" hidden>Copiar agenda de este navegador a mi cuenta</button></div>
         <input id="backupFile" type="file" accept="application/json,.json" hidden />
       </section>
@@ -120,13 +138,18 @@
       <p id="preferencesMessage" role="status"></p>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="program.js?v=20260923-completo"></script>
-    <script src="agenda-data.js?v=20260923-completo"></script>
-    <script src="agenda-sync.js?v=20260923-completo"></script>
-    <script src="firebase-config.js?v=20260923-completo"></script>
-    <script src="walking-times.js?v=20260923-completo"></script>
-    <script src="app.js?v=20260923-completo"></script>
-    <script src="cloud.js?v=20260923-completo"></script>
-    <script src="accounts.js?v=20260923-completo"></script>
+    <script src="program.js?v=20260924-cuadro"></script>
+    <script src="agenda-data.js?v=20260924-cuadro"></script>
+    <script src="agenda-sync.js?v=20260924-cuadro"></script>
+    <script src="agenda-storage.js?v=20260924-cuadro"></script>
+    <script src="firebase-config.js?v=20260924-cuadro"></script>
+    <script src="walking-times.js?v=20260924-cuadro"></script>
+    <script src="app.js?v=20260924-cuadro"></script>
+    <script src="cloud.js?v=20260924-cuadro"></script>
+    <script src="accounts.js?v=20260924-cuadro"></script>
+    <script src="poster-preview.js?v=20260924-cuadro"></script>
+    <script src="program-grid.js?v=20260924-cuadro"></script>
+    <script src="poster-index.js?v=20260924-cuadro"></script>
+    <script src="excel-export.js?v=20260924-cuadro"></script>
   </body>
 </html>

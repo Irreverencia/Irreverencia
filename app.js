@@ -17,14 +17,15 @@
   if (!movies.length) return;
   const movieById = new Map(movies.map((movie) => [movie.id, movie]));
   const venues = [
-    { id: "auditori", name: "Sala Auditori Meliá", address: "Hotel Meliá Sitges · Joan Salvat Papasseit, 38", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, 08870 Sitges, Barcelona", lat: 41.2367, lng: 1.82392, mapX: 1858, mapY: 485 },
-    { id: "tramuntana", name: "Sala Tramuntana Meliá", address: "Hotel Meliá Sitges · Joan Salvat Papasseit, 38", googleQuery: "Sala Tramuntana, Hotel Meliá Sitges, 08870 Sitges, Barcelona", lat: 41.23664, lng: 1.82436, mapX: 1938, mapY: 508 },
-    { id: "prado", name: "Cinema Casino Prado", address: "Carrer de Francesc Gumà, 6-14 · Sitges", googleQuery: "Casino Prado Suburense, Carrer de Francesc Gumà 6-14, 08870 Sitges, Barcelona", lat: 41.23794, lng: 1.81062, mapX: 153, mapY: 298 },
-    { id: "escorxador", name: "Cinema Escorxador", address: "Carrer de Joan Maragall, 36 · Sitges", googleQuery: "Carrer de Joan Maragall 36, 08870 Sitges, Barcelona", lat: 41.2371, lng: 1.81581, mapX: 834, mapY: 455 },
-    { id: "mercat", name: "Mercat Vell", address: "Plaça de l'Ajuntament, 11 · Sitges", googleQuery: "Mercat Vell de Sitges, Plaça de l'Ajuntament 11, 08870 Sitges, Barcelona", lat: 41.23522, lng: 1.81166, mapX: 290, mapY: 690 },
-    { id: "llevant", name: "Sala Llevant · Brigadoon", address: "Hotel Meliá Sitges · planta −1 · marcador del hotel", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, Sitges", lat: 41.2367, lng: 1.82392, mapX: 1858, mapY: 485 },
+    { id: "auditori", name: "Sala Auditori Meliá", address: "Hotel Meliá Sitges · Joan Salvat Papasseit, 38", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, 08870 Sitges, Barcelona", lat: 41.2367, lng: 1.82392, mapX: 1707, mapY: 450, mapGroup: "melia" },
+    { id: "tramuntana", name: "Sala Tramuntana Meliá", address: "Hotel Meliá Sitges · Joan Salvat Papasseit, 38", googleQuery: "Sala Tramuntana, Hotel Meliá Sitges, 08870 Sitges, Barcelona", lat: 41.23664, lng: 1.82436, mapX: 1707, mapY: 450, mapGroup: "melia" },
+    { id: "prado", name: "Cinema Casino Prado", address: "Carrer de Francesc Gumà, 6-14 · Sitges", googleQuery: "Casino Prado Suburense, Carrer de Francesc Gumà 6-14, 08870 Sitges, Barcelona", lat: 41.23794, lng: 1.81062, mapX: 116, mapY: 275 },
+    { id: "escorxador", name: "Cinema Escorxador", address: "Carrer de Joan Maragall, 36 · Sitges", googleQuery: "Carrer de Joan Maragall 36, 08870 Sitges, Barcelona", lat: 41.2371, lng: 1.81581, mapX: 768, mapY: 420 },
+    { id: "mercat", name: "Mercat Vell", address: "Plaça de l'Ajuntament, 11 · Sitges", googleQuery: "Mercat Vell de Sitges, Plaça de l'Ajuntament 11, 08870 Sitges, Barcelona", lat: 41.23522, lng: 1.81166, mapX: null, mapY: null },
+    { id: "llevant", name: "Sala Llevant · Brigadoon", address: "Hotel Meliá Sitges · planta −1 · marcador del hotel", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, Sitges", lat: 41.2367, lng: 1.82392, mapX: 1707, mapY: 450, mapGroup: "melia" },
   ];
-  const homeOnMap = { name: "Tu alojamiento", mapX: 1662, mapY: 255 };
+  // Version the user's replacement image so browsers cannot reuse the old map.
+  const mapImage = "assets/mapa-sitges-openstreetmap.png?v=96d3449bb03a";
   const persisted = (() => {
     try { return window.SitgesData.migrateLegacy(JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem("sitges-2026-agenda-v1") || "{}")); } catch { return window.SitgesData.empty(); }
   })();
@@ -73,10 +74,13 @@
 
   const keepPosition = (render) => {
     const x = window.scrollX || 0, y = window.scrollY || 0;
+    const panelPositions = [$(".workspace"), $("#moviePanel"), $("#agendaPanel")].filter(Boolean)
+      .map((panel) => ({ panel, top: panel.scrollTop || 0, left: panel.scrollLeft || 0 }));
     const focusedMovie = document.activeElement?.dataset?.movieId;
     render();
     const restore = () => {
       if (focusedMovie) list.querySelector?.(`[data-movie-id="${focusedMovie}"]`)?.focus({ preventScroll: true });
+      panelPositions.forEach(({ panel, top, left }) => { panel.scrollTop = top; panel.scrollLeft = left; });
       window.scrollTo?.({ left: x, top: y, behavior: "instant" });
     };
     restore(); requestAnimationFrame(restore);
@@ -174,6 +178,8 @@
     $("#unassignedCount").textContent = unassigned.length;
     $("#conflictCount").textContent = conflictMap.size;
     $("#daysCount").textContent = groups.size;
+    if ($("#mobileDayFilter")) $("#mobileDayFilter").value = state.activeDay;
+    if ($("#mobileSelectionCount")) $("#mobileSelectionCount").textContent = state.selected.size;
     const itemsForDay = (day) => groups.get(day) || [];
     const walkingRoutesFor = (items) => items.map((item, index) => {
       if (!index) return null;
@@ -315,8 +321,13 @@
   const renderSavedMap = (items, mapVenues, focusedVenue) => {
     const target = $("#savedMap");
     if (!target) return;
-    const routeVenues = items.map((item) => venueById(venueForLocation(item.session.location))).filter(Boolean);
-    const route = routeVenues.length > 1 ? `<polyline class="saved-map-route" points="${routeVenues.map((venue) => `${venue.mapX},${venue.mapY}`).join(" ")}" />` : "";
+    const onMap = (venue) => venue && Number.isFinite(venue.mapX) && Number.isFinite(venue.mapY);
+    const route = items.map((item, i) => {
+      if (!i || dateOf(items[i - 1].session.start) !== dateOf(item.session.start)) return "";
+      const from = venueById(venueForLocation(items[i - 1].session.location));
+      const to = venueById(venueForLocation(item.session.location));
+      return onMap(from) && onMap(to) ? `<polyline class="saved-map-route" points="${from.mapX},${from.mapY} ${to.mapX},${to.mapY}" />` : "";
+    }).join("");
     const labels = {
       auditori: "Auditori Meliá",
       tramuntana: "Tramuntana",
@@ -325,16 +336,17 @@
       mercat: "Mercat Vell",
       llevant: "Llevant · hotel, planta −1",
     };
-    const markers = venues.map((venue) => {
-      const active = focusedVenue?.id === venue.id || (!focusedVenue && mapVenues.some((item) => item.id === venue.id));
-      const scheduled = mapVenues.some((item) => item.id === venue.id);
-      const isRightEdge = venue.id === "tramuntana" || venue.id === "llevant";
+    const markers = venues.filter((venue) => onMap(venue) && (!venue.mapGroup || venue.id === "auditori")).map((venue) => {
+      const sameMarker = (item) => item?.id === venue.id || (venue.mapGroup && item?.mapGroup === venue.mapGroup);
+      const active = sameMarker(focusedVenue) || (!focusedVenue && mapVenues.some(sameMarker));
+      const scheduled = mapVenues.some(sameMarker);
+      const isRightEdge = venue.mapGroup === "melia";
       const textX = isRightEdge ? -20 : 20;
       const textAnchor = isRightEdge ? "end" : "start";
-      return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="${venue.id === "llevant" ? -22 : 6}" text-anchor="${textAnchor}">${escapeHtml(labels[venue.id] || venue.name)}</text></g>`;
+      const label = venue.mapGroup === "melia" ? "Meliá · Auditori, Tramuntana y Llevant" : labels[venue.id] || venue.name;
+      return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="6" text-anchor="${textAnchor}">${escapeHtml(label)}</text></g>`;
     }).join("");
-    const home = /devesa.*22/i.test(lodging.address) ? `<g class="saved-map-home" transform="translate(${homeOnMap.mapX} ${homeOnMap.mapY})"><circle r="15"/><path d="M-7 0 0-7 7 0V8H3V3H-3V8H-7Z"/><text x="20" y="6">${escapeHtml(homeOnMap.name)}</text></g>` : "";
-    target.innerHTML = `<div class="saved-map-image-wrap"><img class="saved-map-image" src="assets/mapa-sitges-openstreetmap.png" alt="Mapa de Sitges con la ubicación de las salas de proyección y del alojamiento" /><svg class="saved-map-overlay" viewBox="0 0 2072 745" aria-hidden="true" focusable="false">${route}${markers}${home}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div>`;
+    target.innerHTML = `<div class="saved-map-image-wrap"><img class="saved-map-image" src="${mapImage}" width="1725" height="608" alt="Mapa de Sitges con las salas de proyección, sin alojamientos personales" /><svg class="saved-map-overlay" viewBox="0 0 1725 608" aria-hidden="true" focusable="false">${route}${markers}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div><p class="saved-map-note">Marcadores orientativos. Meliá agrupa sus tres salas; Mercat Vell queda fuera del encuadre. Las líneas unen salas, no son rutas por calles. Consulta los enlaces para caminar.</p>`;
   };
   const renderMapForActiveDay = () => {
     if (!$("#savedMap")) return;
@@ -358,7 +370,7 @@
           const venue = venueById(id);
           const active = displayVenue?.id === id;
           const atVenue = items.filter((item) => venueForLocation(item.session.location) === id);
-          return `<button class="venue-button ${active ? "active" : ""}" type="button" data-venue="${id}"><span class="venue-marker"></span><span><span class="venue-name">${escapeHtml(venue.name)}</span><span class="venue-address">${escapeHtml(venue.address)} · ${atVenue.length} ${atVenue.length === 1 ? "película" : "películas"}</span></span></button>`;
+          return `<button class="venue-button ${active ? "active" : ""}" type="button" data-venue="${id}"><span class="venue-marker"></span><span><span class="venue-name">${escapeHtml(venue.name)}</span><span class="venue-address">${escapeHtml(venue.address)} · ${atVenue.length} ${atVenue.length === 1 ? "película" : "películas"}${venue.mapX === null ? " · Fuera del encuadre: abrir en Google Maps" : ""}</span></span></button>`;
         }).join("")
       : `<p class="day-empty">Aquí aparecerán las salas de tus películas para este día.</p>`;
   };
@@ -385,6 +397,17 @@
   $("#searchMovies").addEventListener("input", (event) => { state.query = event.target.value; renderMovieList(); });
   $("#sectionFilter").addEventListener("change", (event) => { state.section = event.target.value; renderMovieList(); });
   $("#venueFilter").addEventListener("change", (event) => { state.venue = event.target.value; renderMovieList(); });
+  const chooseDay = (day) => {
+    if (day !== allDaysKey && !travelDays.includes(day)) return;
+    state.activeDay = day; state.focusedMovieId = null;
+    renderAgenda(); renderMovieList();
+    if ($("#moviePanel")) $("#moviePanel").scrollTop = 0;
+    if ($("#agendaPanel")) $("#agendaPanel").scrollTop = 0;
+  };
+  if ($("#mobileDayFilter")) {
+    $("#mobileDayFilter").innerHTML = `<option value="all">Todos · 8 — 18 octubre</option>${travelDays.map((day) => `<option value="${day}">${shortDay(`${day}T12:00:00`)}</option>`).join("")}`;
+    $("#mobileDayFilter").addEventListener("change", (event) => chooseDay(event.target.value));
+  }
   list.addEventListener("load", (event) => {
     if (!event.target.matches(".movie-poster")) return;
     const wrapper = event.target.closest(".poster-wrap");
@@ -425,7 +448,7 @@
   content.addEventListener("change", (event) => { if (event.target.dataset.sessionFor) setManualSession(event.target.dataset.sessionFor, event.target.value); });
   content.addEventListener("click", (event) => {
     const tabDay = event.target.closest("[data-day-tab]")?.dataset.dayTab;
-    if (tabDay) { state.activeDay = tabDay; state.focusedMovieId = null; renderAgenda(); renderMovieList(); return; }
+    if (tabDay) { chooseDay(tabDay); return; }
     const movieId = event.target.closest("[data-map-for]")?.dataset.mapFor;
     const venueId = event.target.closest("[data-venue]")?.dataset.venue;
     const unassignMovieId = event.target.closest("[data-unassign-movie]")?.dataset.unassignMovie;

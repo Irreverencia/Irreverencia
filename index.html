@@ -7,7 +7,7 @@
     <title>Agenda Sitges 2026</title>
     <style>[hidden] { display: none !important; }</style>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315263f'/%3E%3Cpath d='M17 18h30v8H17zm0 14h30v14H17z' fill='%23f7d84a'/%3E%3Cpath d='M25 26v6m14-6v6' stroke='%2315263f' stroke-width='4'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="styles.css?v=20260924-cuadro" />
+    <link rel="stylesheet" href="styles.css?v=20260924-movil-mapa" />
   </head>
   <body>
     <section id="welcomeScreen" class="welcome-screen" aria-label="Acceso a Agenda Sitges 2026">
@@ -44,8 +44,16 @@
         <button id="exportConflict" class="button" type="button">Descargar mi copia</button>
       </section>
 
+      <nav id="mobileNavigation" class="mobile-navigation" aria-label="Navegar por el planificador">
+        <div class="mobile-panel-buttons">
+          <button id="showMovies" type="button" aria-controls="moviePanel" aria-pressed="true">Películas <span id="mobileSelectionCount">0</span></button>
+          <button id="showAgenda" type="button" aria-controls="agendaPanel" aria-pressed="false">Revisión de agenda →</button>
+        </div>
+        <label class="mobile-day-field" for="mobileDayFilter"><span>Día del festival</span><select id="mobileDayFilter"></select></label>
+        <p>Desliza a los lados para cambiar de panel.</p>
+      </nav>
       <section class="workspace" aria-label="Planificador de películas">
-        <aside class="movie-panel">
+        <aside id="moviePanel" class="movie-panel" aria-label="Películas que quiero ver">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">SELECCIÓN</p>
@@ -70,7 +78,7 @@
           <div id="movieList" class="movie-list" aria-live="polite"></div>
         </aside>
 
-        <section class="agenda-panel">
+        <section id="agendaPanel" class="agenda-panel" aria-label="Revisión de agenda">
           <div class="agenda-header">
             <div>
               <p class="eyebrow">AGENDA PERSONAL</p>
@@ -144,12 +152,13 @@
     <script src="agenda-storage.js?v=20260924-cuadro"></script>
     <script src="firebase-config.js?v=20260924-cuadro"></script>
     <script src="walking-times.js?v=20260924-cuadro"></script>
-    <script src="app.js?v=20260924-cuadro"></script>
+    <script src="app.js?v=20260924-movil-mapa"></script>
     <script src="cloud.js?v=20260924-cuadro"></script>
     <script src="accounts.js?v=20260924-cuadro"></script>
-    <script src="poster-preview.js?v=20260924-cuadro"></script>
+    <script src="poster-preview.js?v=20260924-movil-mapa"></script>
     <script src="program-grid.js?v=20260924-cuadro"></script>
     <script src="poster-index.js?v=20260924-cuadro"></script>
     <script src="excel-export.js?v=20260924-cuadro"></script>
+    <script src="mobile-navigation.js?v=20260924-movil-mapa"></script>
   </body>
 </html>

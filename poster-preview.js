@@ -37,6 +37,10 @@
   preview.addEventListener('pointerenter', () => clearTimeout(timer));
   preview.addEventListener('pointerleave', later);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
-  window.addEventListener('scroll', hide, { passive: true });
+  window.addEventListener('scroll', event => {
+    // On mobile the columns scroll independently; scrolling the synopsis itself must remain possible.
+    if (event.target instanceof Node && preview.contains(event.target)) return;
+    hide();
+  }, { passive: true, capture: true });
   window.addEventListener('resize', hide);
 })();

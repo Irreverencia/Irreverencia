@@ -10,6 +10,7 @@
   let lodging = { address: "" };
   let locked = false;
   let exportIdentity = null;
+  const subscribers = new Set();
   const isTravelSession = (session) => travelDays.includes(session.start.slice(0, 10));
   const festivalTime = (value) => /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}+02:00`;
   const movies = program.movies
@@ -34,6 +35,7 @@
   const state = {
     selected: new Set(initial.selected),
     agenda: new Map(),
+    priorities: {},
     query: "",
     section: "all",
     venue: "all",
@@ -59,7 +61,7 @@
   const schedulable = (session) => !session.unconfirmedDuration && timeValue(session.end) > timeValue(session.start);
   const getSession = (movieId, sessionId) => movieById.get(movieId)?.sessions.find((session) => session.id === sessionId && schedulable(session));
   const conflictingCommitment = (session) => commitments.find((commitment) => overlaps(session, commitment));
-  const snapshot = () => window.SitgesData.normalize({ selected: [...state.selected], agenda: Object.fromEntries(state.agenda), commitments, lodging });
+  const snapshot = () => window.SitgesData.normalize({ selected: [...state.selected], agenda: Object.fromEntries(state.agenda), priorities: state.priorities, commitments, lodging });
   let persistHandler = (data) => localStorage.setItem(storageKey, JSON.stringify(data));
   const persist = () => {
     if (locked) return;
@@ -74,7 +76,7 @@
 
   const keepPosition = (render) => {
     const x = window.scrollX || 0, y = window.scrollY || 0;
-    const panelPositions = [$(".workspace"), $("#moviePanel"), $("#agendaPanel")].filter(Boolean)
+    const panelPositions = [$(".workspace"), $("#moviePanel"), $("#agendaPanel"), $("#festivalPanel"), $("#prioritiesPanel")].filter(Boolean)
       .map((panel) => ({ panel, top: panel.scrollTop || 0, left: panel.scrollLeft || 0 }));
     const focusedMovie = document.activeElement?.dataset?.movieId;
     render();
@@ -152,7 +154,7 @@
       return sessions.map((session) => `${state.activeDay === allDaysKey ? `${shortDay(session.start)} · ` : ""}${timeOf(session.start)}${session.unconfirmedDuration ? " (fin pendiente de confirmar; aún no agendable)" : ""}`).join(" · ");
     };
     list.innerHTML = visible.map((movie) => `
-      <label class="movie-card">
+      <article class="movie-entry"><label class="movie-card">
         <input type="checkbox" data-movie-id="${movie.id}" ${state.selected.has(movie.id) ? "checked" : ""} />
         <span class="poster-wrap" tabindex="0" data-poster-id="${movie.id}" aria-label="Ver póster y sinopsis de ${escapeHtml(movie.title)}">${movie.posterUrl ? `<img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" />` : `<span class="poster-fallback">SIN<br>PÓSTER</span>`}</span>
         <span>
@@ -161,7 +163,8 @@
           <span class="movie-screenings"><strong>${state.activeDay === allDaysKey ? "Pases:" : "Hoy:"}</strong> ${escapeHtml(sessionsText(movie))}</span>
           <span class="movie-section">${escapeHtml(movie.inclusion || movie.sections.join(" · ") || "Programación Sitges")}</span>
         </span>
-      </label>`).join("");
+      </label><div class="priority-slot" data-priority-slot="${movie.id}"></div></article>`).join("");
+    subscribers.forEach(callback => callback());
   };
 
   const renderAgenda = () => {
@@ -239,6 +242,7 @@
       : `<section class="day-group" role="tabpanel"><div class="day-heading"><h3>${shortDay(`${state.activeDay}T12:00:00`)}</h3><span>${activeItems.length} ${activeItems.length === 1 ? "película" : "películas"}</span></div>${commitmentsHtml(state.activeDay)}${cardsHtml(activeItems)}${routesHtml(activeItems)}</section>`;
     content.innerHTML = `${tabsHtml}${mapPanelHtml}${unassignedPanelHtml}${dayContentHtml}`;
     renderMapForActiveDay();
+    subscribers.forEach(callback => callback());
     if (state.showUnassigned && unassigned.length) requestAnimationFrame(() => $("#unassignedPanel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
@@ -290,6 +294,7 @@
     const movie = movieById.get(movieId);
     if (!movie) return;
     state.selected.delete(movieId);
+    delete state.priorities[movieId];
     state.agenda.delete(movieId);
     state.focusedMovieId = null;
     if (![...state.selected].some((id) => !state.agenda.has(id))) state.showUnassigned = false;
@@ -424,6 +429,7 @@
       state.focusedMovieId = id;
     } else {
       state.selected.delete(id);
+      delete state.priorities[id];
       state.agenda.delete(id);
       state.focusedMovieId = null;
     }
@@ -444,7 +450,7 @@
     renderMovieList();
     renderAgenda();
   });
-  $("#clearButton").addEventListener("click", () => { state.selected.clear(); state.agenda.clear(); state.focusedMovieId = null; state.showUnassigned = false; persist(); renderMovieList(); renderAgenda(); say("Selección vaciada."); });
+  $("#clearButton").addEventListener("click", () => { state.selected.clear(); state.agenda.clear(); state.priorities = {}; state.focusedMovieId = null; state.showUnassigned = false; persist(); renderMovieList(); renderAgenda(); say("Selección vaciada."); });
   content.addEventListener("change", (event) => { if (event.target.dataset.sessionFor) setManualSession(event.target.dataset.sessionFor, event.target.value); });
   content.addEventListener("click", (event) => {
     const tabDay = event.target.closest("[data-day-tab]")?.dataset.dayTab;
@@ -491,6 +497,7 @@
           const ids = input?.movieIds;
           if (!Array.isArray(ids) || !ids.every((id) => movieById.has(id))) throw new Error("La selección incluye una película desconocida.");
           state.selected = new Set(ids);
+          state.priorities = Object.fromEntries(Object.entries(state.priorities).filter(([id]) => state.selected.has(id)));
           state.agenda = new Map([...state.agenda].filter(([movieId]) => state.selected.has(movieId)));
           ensureSessionsForSelectedMovies();
           persist();
@@ -506,6 +513,13 @@
 
   window.SitgesAgenda = {
     snapshot,
+    subscribe: (callback) => { subscribers.add(callback); return () => subscribers.delete(callback); },
+    setPriority: (movieId, score) => {
+      if (locked || !state.selected.has(movieId) || !Number.isInteger(score) || score < 0 || score > 10) return false;
+      state.priorities[movieId] = score;
+      persist(); keepPosition(renderAgenda);
+      return true;
+    },
     setExportIdentity: (identity) => { exportIdentity = identity; },
     getExportIdentity: () => exportIdentity,
     exportSelection: () => {
@@ -526,6 +540,7 @@
     apply: (input, { preserveView = false } = {}) => {
       const data = window.SitgesData.normalize(input);
       state.selected = new Set(data.selected.filter((id) => movieById.has(id)));
+      state.priorities = data.priorities;
       state.agenda = new Map(Object.entries(data.agenda).filter(([id, sessionId]) => state.selected.has(id) && getSession(id, sessionId)));
       commitments = data.commitments;
       lodging = data.lodging;

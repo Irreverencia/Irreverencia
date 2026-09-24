@@ -7,7 +7,7 @@
     <title>Agenda Sitges 2026</title>
     <style>[hidden] { display: none !important; }</style>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315263f'/%3E%3Cpath d='M17 18h30v8H17zm0 14h30v14H17z' fill='%23f7d84a'/%3E%3Cpath d='M25 26v6m14-6v6' stroke='%2315263f' stroke-width='4'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="styles.css?v=20260924-movil-mapa2" />
+    <link rel="stylesheet" href="styles.css?v=20260924-prioridades" />
   </head>
   <body>
     <section id="welcomeScreen" class="welcome-screen" aria-label="Acceso a Agenda Sitges 2026">
@@ -44,10 +44,17 @@
         <button id="exportConflict" class="button" type="button">Descargar mi copia</button>
       </section>
 
+      <nav class="workspace-tabs" aria-label="Vistas de la aplicación">
+        <button type="button" data-desktop-panel="0" aria-pressed="true">Mi agenda</button>
+        <button type="button" data-desktop-panel="2" aria-pressed="false">Programación</button>
+        <button type="button" data-desktop-panel="3" aria-pressed="false">Prioridades</button>
+      </nav>
       <nav id="mobileNavigation" class="mobile-navigation" aria-label="Navegar por el planificador">
         <div class="mobile-panel-buttons">
           <button id="showMovies" type="button" aria-controls="moviePanel" aria-pressed="true">Películas <span id="mobileSelectionCount">0</span></button>
           <button id="showAgenda" type="button" aria-controls="agendaPanel" aria-pressed="false">Revisión de agenda →</button>
+          <button id="showFestival" type="button" aria-controls="festivalPanel" aria-pressed="false">Programación</button>
+          <button id="showPriorities" type="button" aria-controls="prioritiesPanel" aria-pressed="false">Prioridades</button>
         </div>
         <label class="mobile-day-field" for="mobileDayFilter"><span>Día del festival</span><select id="mobileDayFilter"></select></label>
         <p>Desliza a los lados para cambiar de panel.</p>
@@ -104,6 +111,21 @@
           <div id="agendaContent" class="agenda-content" aria-live="polite"></div>
 
         </section>
+        <section id="festivalPanel" class="extra-panel festival-panel" aria-label="Programación del festival">
+          <div class="panel-heading"><div><p class="eyebrow">8 — 18 OCTUBRE</p><h2>Programación del festival</h2><p>Consulta todas las películas y sus pases, independientemente de tu selección.</p></div><button id="browseGridButton" class="button" type="button">Ver cuadro de horarios</button></div>
+          <div class="catalog-filters">
+            <label>Buscar película<input id="catalogSearch" type="search" placeholder="Título o dirección" /></label>
+            <label>Día<select id="catalogDay"></select></label>
+            <label>Sala<select id="catalogVenue"></select></label>
+          </div>
+          <p id="catalogCount" class="results-note" role="status"></p>
+          <div id="festivalCatalog" class="festival-catalog"></div>
+        </section>
+        <section id="prioritiesPanel" class="extra-panel priorities-panel" aria-label="Películas por prioridad">
+          <div class="panel-heading"><div><p class="eyebrow">TU SELECCIÓN</p><h2>Películas por prioridad</h2><p>De mayor a menor prioridad. En caso de empate, por título. Cambiar una prioridad no cambia los pases.</p></div></div>
+          <p id="priorityCount" class="results-note" role="status"></p>
+          <div id="priorityList" class="priority-list"></div>
+        </section>
       </section>
     </main>
     <dialog id="programDialog" class="program-dialog" aria-labelledby="programTitle">
@@ -147,18 +169,19 @@
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="program.js?v=20260924-cuadro"></script>
-    <script src="agenda-data.js?v=20260924-cuadro"></script>
+    <script src="agenda-data.js?v=20260924-prioridades"></script>
     <script src="agenda-sync.js?v=20260924-cuadro"></script>
     <script src="agenda-storage.js?v=20260924-cuadro"></script>
     <script src="firebase-config.js?v=20260924-cuadro"></script>
     <script src="walking-times.js?v=20260924-cuadro"></script>
-    <script src="app.js?v=20260924-movil-mapa"></script>
+    <script src="app.js?v=20260924-prioridades"></script>
     <script src="cloud.js?v=20260924-cuadro"></script>
     <script src="accounts.js?v=20260924-cuadro"></script>
     <script src="poster-preview.js?v=20260924-movil-mapa2"></script>
     <script src="program-grid.js?v=20260924-cuadro"></script>
     <script src="poster-index.js?v=20260924-cuadro"></script>
     <script src="excel-export.js?v=20260924-cuadro"></script>
-    <script src="mobile-navigation.js?v=20260924-movil-mapa"></script>
+    <script src="mobile-navigation.js?v=20260924-prioridades"></script>
+    <script src="film-views.js?v=20260924-prioridades"></script>
   </body>
 </html>

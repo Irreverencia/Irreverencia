@@ -74,6 +74,45 @@ dialog input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65re
 
 .workspace { position: relative; display: grid; grid-template-columns: minmax(330px, .82fr) minmax(550px, 1.55fr); overflow: hidden; min-height: calc(100vh - 7.5rem); border: 1px solid var(--line); border-radius: 20px; background: var(--white); box-shadow: var(--shadow); }
 .mobile-navigation { display: none; }
+.workspace-tabs { display: flex; gap: .5rem; margin: 0 0 1rem; }
+.workspace-tabs button { min-height: 44px; padding: .5rem 1rem; border: 1px solid var(--line); border-radius: 9px; background: white; color: var(--ink); font-weight: 800; }
+.workspace-tabs button[aria-pressed="true"] { background: var(--ink); color: white; }
+.workspace > .extra-panel { display: none; min-width: 0; }
+.extra-panel .panel-heading { flex-wrap: wrap; }
+.extra-panel .panel-heading p:not(.eyebrow) { max-width: 48rem; margin-bottom: 0; color: var(--ink-soft); font-size: .85rem; }
+.catalog-filters { display: flex; flex-wrap: wrap; gap: 1rem; padding: 0 1.5rem 1rem; }
+.catalog-filters label { display: grid; gap: .35rem; flex: 1 1 180px; font-size: .8rem; font-weight: 750; }
+.catalog-filters input, .catalog-filters select { width: 100%; min-width: 0; min-height: 44px; padding: .5rem; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); }
+.festival-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: 1rem; padding: 1rem 1.5rem; align-content: start; }
+.catalog-card { display: grid; grid-template-columns: 80px minmax(0, 1fr); align-content: start; gap: .8rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfe; }
+.catalog-poster { width: 80px; height: 118px; border-radius: 6px; object-fit: cover; background: #e6ebf0; }
+.catalog-card h3, .priority-card h3 { margin: 0; font-size: 1rem; }
+.catalog-card p, .priority-card p { margin: .4rem 0; font-size: .8rem; color: var(--ink-soft); }
+.catalog-card details { margin-top: .6rem; font-size: .8rem; }
+.catalog-card summary { cursor: pointer; font-weight: 750; }
+.catalog-passes { grid-column: 1 / -1; font-size: .8rem; }
+.catalog-passes ul { padding-left: 1rem; margin: .4rem 0 0; }
+.catalog-passes li + li { margin-top: .5rem; }
+.catalog-passes small { display: block; color: var(--ink-soft); }
+.selected-badge { display: inline-block; padding: .2rem .4rem; border-radius: 5px; color: #405116; background: #e8f3aa; font-size: .75rem; font-weight: 800; }
+.priority-slot { padding: 0 .7rem .65rem; }
+.priority-control { margin-top: .4rem; }
+.priority-control > strong { display: block; font-size: .8rem; }
+.priority-control > strong span { color: #775414; }
+.priority-stars { display: flex; flex-wrap: wrap; gap: 0; margin-top: .25rem; }
+.priority-stars button { display: grid; place-items: center; min-width: 24px; min-height: 36px; padding: 0 1px; border: 0; border-radius: 5px; background: transparent; color: #707c8a; font-size: 1.3rem; }
+.priority-stars button:first-child { font-size: .8rem; border: 1px solid var(--line); margin-right: .2rem; }
+.priority-stars button.star-filled { color: #996500; }
+.priority-stars button:hover, .priority-stars button[aria-pressed="true"] { background: #fff0be; }
+.priority-list { display: grid; gap: .75rem; padding: 1rem 1.5rem; align-content: start; }
+.priority-card { display: grid; grid-template-columns: 2rem 80px minmax(0, 1fr); align-items: start; gap: .8rem; border: 1px solid var(--line); border-radius: 12px; padding: 1rem; }
+.priority-rank { display: grid; place-items: center; height: 2rem; border-radius: 50%; background: var(--blue-soft); font-weight: 800; }
+@media (min-width: 921px) {
+  .workspace[data-view="festival"], .workspace[data-view="priorities"] { grid-template-columns: 1fr; }
+  .workspace[data-view="festival"] > .movie-panel, .workspace[data-view="festival"] > .agenda-panel,
+  .workspace[data-view="priorities"] > .movie-panel, .workspace[data-view="priorities"] > .agenda-panel { display: none; }
+  .workspace[data-view="festival"] > .festival-panel, .workspace[data-view="priorities"] > .priorities-panel { display: block; }
+}
 .movie-panel { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--line); background: #fbfcfe; }
 .panel-heading, .agenda-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.5rem 1.5rem 1.1rem; }
 .panel-heading h2, .agenda-header h2 { font-size: 1.35rem; }
@@ -272,6 +311,16 @@ dialog input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65re
 .toast.visible { opacity: 1; transform: translateY(0); }
 
 @media (max-width: 920px) {
+  .workspace-tabs { display: none; }
+  .mobile-navigation:has(#showFestival[aria-pressed="true"]) .mobile-day-field,
+  .mobile-navigation:has(#showPriorities[aria-pressed="true"]) .mobile-day-field { display: none; }
+  .workspace > .extra-panel { display: block; flex: 0 0 100%; width: 100%; height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; scroll-snap-align: start; overscroll-behavior-y: contain; scrollbar-width: thin; }
+  .catalog-filters { gap: .6rem; padding: 0 1rem 1rem; }
+  .catalog-filters label { flex-basis: 100%; }
+  .festival-catalog, .priority-list { padding: 1rem; }
+  .priority-card { grid-template-columns: 1.6rem 56px minmax(0, 1fr); gap: .5rem; padding: .7rem; }
+  .priority-card .catalog-poster { width: 56px; height: 82px; }
+  .priority-card .priority-control { margin-left: -4rem; margin-top: 1rem; }
   .app-shell { display: flex; flex-direction: column; height: 100svh; height: 100dvh; min-height: 0; padding: .65rem .65rem max(.65rem, env(safe-area-inset-bottom)); }
   .topbar { flex-shrink: 0; margin: 0 0 .55rem; gap: .5rem; }
   .brand { gap: .45rem; }
@@ -287,7 +336,8 @@ dialog input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65re
   .account-actions .button { min-height: 2.15rem; padding: .2rem .5rem; font-size: .72rem; }
   .sync-conflict { flex-shrink: 0; max-height: 25vh; overflow: auto; }
   .mobile-navigation { flex-shrink: 0; display: grid; gap: .45rem; margin-bottom: .45rem; }
-  .mobile-panel-buttons { display: grid; grid-template-columns: 1fr 1.3fr; gap: .45rem; }
+  .mobile-panel-buttons { display: flex; gap: .45rem; overflow-x: auto; scrollbar-width: thin; }
+  .mobile-panel-buttons button { flex: 0 0 auto; }
   .mobile-panel-buttons button { min-height: 44px; padding: .5rem .35rem; border: 1px solid #bec9d6; border-radius: 9px; background: white; color: var(--ink); font-size: .83rem; font-weight: 800; }
   .mobile-panel-buttons button[aria-pressed="true"] { color: white; background: var(--ink); border-color: var(--ink); }
   #mobileSelectionCount { display: inline-grid; place-items: center; min-width: 1.35rem; margin-left: .2rem; padding: 0 .2rem; border-radius: 999px; background: var(--lime); color: #263100; }

@@ -31,7 +31,7 @@
         const length = Math.max(0, minutes(s.end, d) - minutes(s.start, d));
         const title = s.movies.length === 1 ? s.movies[0].title : s.name;
         const label = `${clock(s.start)}–${s.unconfirmedDuration ? '?' : clock(s.end)} · ${title} · ${s.movies.map(m => m.title).join(' + ')} · ${location}`;
-        return `<button type="button" class="grid-event${chosenIds.has(s.id) ? ' grid-chosen' : ''}${s.unconfirmedDuration ? ' grid-unconfirmed' : ''}" data-grid-session="${escape(s.id)}" title="${escape(label)}" aria-label="${escape(label)}" style="top:${(minutes(s.start, d) - start) * scale}px;height:${Math.max(19, length * scale - 2)}px;background:${color(s.sections[0] || '')}"><b>${clock(s.start)} – ${s.unconfirmedDuration ? '?' : clock(s.end)}</b><span>${escape(title)}</span>${s.movies.length > 1 ? `<small>${s.movies.length} películas · pase conjunto</small>` : ''}${chosenIds.has(s.id) ? '<small>En tu agenda</small>' : ''}</button>`;
+        return `<button type="button" class="grid-event${chosenIds.has(s.id) ? ' grid-chosen' : ''}${s.unconfirmedDuration ? ' grid-unconfirmed' : ''}" data-grid-session="${escape(s.id)}" aria-pressed="${chosenIds.has(s.id)}" title="${escape(label)}" aria-label="${escape(label)}" style="top:${(minutes(s.start, d) - start) * scale}px;height:${Math.max(19, length * scale - 2)}px;background:${color(s.sections[0] || '')}"><b>${clock(s.start)} – ${s.unconfirmedDuration ? '?' : clock(s.end)}</b><span>${escape(title)}</span>${s.movies.length > 1 ? `<small>${s.movies.length} películas · pase conjunto</small>` : ''}<small class="grid-selection-label" ${chosenIds.has(s.id) ? '' : 'hidden'}>En tu agenda</small></button>`;
       }).join('')}</div></div>`;
     }).join('')}</div></section>`).join('');
     return { html, visible, days, locations, start };
@@ -57,10 +57,42 @@
   }
   $('#viewProgramButton').addEventListener('click', () => { if (!window.SitgesAgenda.getExportIdentity()) return; $('#programDialog').showModal(); render(); });
   for (const id of ['#programDayFilter', '#programVenueFilter', '#programScale']) $(id).addEventListener('change', render);
+  let detailSession = null;
+  function showDetails(s) {
+    const data = window.SitgesAgenda.snapshot();
+    const panel = $('#programDetails');
+    panel.innerHTML = `<button type="button" class="grid-detail-close" aria-label="Cerrar detalle del pase">×</button><h3>${escape(s.name)}</h3><p id="gridSelectionStatus" role="status"></p><p>${escape(dateLabel(s.start.slice(0, 10)))} · ${clock(s.start)}–${s.unconfirmedDuration ? 'fin pendiente' : clock(s.end)}${s.end.slice(0, 10) !== s.start.slice(0, 10) ? ' (+1 día)' : ''} · ${escape(s.location)}</p><ul>${s.movies.map(m => {
+      const chosen = data.agenda[m.id], selected = data.selected.includes(m.id), same = chosen === s.id;
+      const current = chosen && byId.get(chosen);
+      return `<li><a href="${escape(m.url)}" target="_blank" rel="noreferrer">${escape(m.title)}</a>${current && !same ? `<small>Tu pase actual: ${escape(dateLabel(current.start.slice(0,10)))} · ${clock(current.start)} · ${escape(current.location)}</small>` : ''}<div class="grid-selection-actions"><button type="button" data-grid-select="${escape(m.id)}" ${same || s.unconfirmedDuration && selected ? 'disabled' : ''}>${same ? '✓ Este pase está en tu agenda' : s.unconfirmedDuration ? selected ? 'Seleccionada · fin pendiente' : 'Seleccionar sin pase (fin pendiente)' : chosen ? 'Cambiar a este pase' : 'Seleccionar película y este pase'}</button>${selected ? `<button type="button" data-grid-remove="${escape(m.id)}">Quitar de mi selección</button>` : ''}</div></li>`;
+    }).join('')}</ul><p>${s.shared ? 'Pase conjunto: selecciona las películas que quieras; comparten este bloque horario. ' : ''}${s.qa ? 'Con presentación / coloquio. ' : ''}${s.talent ? 'Con invitados. ' : ''}${!s.movies.length ? 'Actividad sin películas asociadas en la web oficial.' : ''}</p>`;
+    panel.hidden = false;
+  }
   $('#programGrid').addEventListener('click', e => {
     const s = byId.get(e.target.closest('[data-grid-session]')?.dataset.gridSession); if (!s) return;
-    const panel = $('#programDetails');
-    panel.innerHTML = `<h3>${escape(s.name)}</h3><p>${escape(dateLabel(s.start.slice(0, 10)))} · ${clock(s.start)}–${s.unconfirmedDuration ? 'fin pendiente' : clock(s.end)}${s.end.slice(0, 10) !== s.start.slice(0, 10) ? ' (+1 día)' : ''} · ${escape(s.location)}</p><ul>${s.movies.map(m => `<li><a href="${escape(m.url)}" target="_blank" rel="noreferrer">${escape(m.title)}</a></li>`).join('')}</ul><p>${s.shared ? 'Pase conjunto: las películas comparten este bloque horario. ' : ''}${s.qa ? 'Con presentación / coloquio. ' : ''}${s.talent ? 'Con invitados. ' : ''}${!s.movies.length ? 'Actividad sin películas asociadas en la web oficial.' : ''}</p>`;
-    panel.hidden = false;
+    detailSession = s; showDetails(s);
+  });
+  $('#programDetails').addEventListener('click', event => {
+    if (event.target.closest('.grid-detail-close')) { $('#programDetails').hidden = true; detailSession = null; return; }
+    const select = event.target.closest('[data-grid-select]'), remove = event.target.closest('[data-grid-remove]');
+    if (!detailSession || !select && !remove) return;
+    const id = select?.dataset.gridSelect || remove.dataset.gridRemove;
+    const result = select ? window.SitgesAgenda.selectScreening(id, detailSession.id) : window.SitgesAgenda.removeSelection(id);
+    showDetails(detailSession);
+    const status = $('#gridSelectionStatus');
+    status.textContent = !result ? 'No se ha cambiado tu selección. Espera a que termine de cargar tu cuenta.' : result.conflicts?.length ? `⚠️ Conflicto: ${result.conflicts.join(' ')} No se han cambiado los otros pases. Revisa tu agenda.` : remove ? 'Película eliminada de tu selección.' : detailSession.unconfirmedDuration ? 'Seleccionada sin pase asignado: fin pendiente de confirmar.' : 'Pase guardado en tu agenda.';
+    status.className = result.conflicts?.length ? 'grid-conflict' : '';
+    $('#programDetails').querySelector(`[data-grid-${remove ? 'select' : 'remove'}="${id}"]`)?.focus({preventScroll:true});
+  });
+  window.SitgesAgenda.subscribe(() => {
+    if (!$('#programDialog').open) return;
+    const chosen = new Set(Object.values(window.SitgesAgenda.snapshot().agenda));
+    $('#programGrid').querySelectorAll('[data-grid-session]').forEach(button => {
+      const selected = chosen.has(button.dataset.gridSession);
+      button.classList.toggle('grid-chosen', selected);
+      button.setAttribute('aria-pressed', String(selected));
+      const label = button.querySelector('.grid-selection-label');
+      if (label) label.hidden = !selected;
+    });
   });
 })();

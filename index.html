@@ -7,7 +7,7 @@
     <title>Agenda Sitges 2026</title>
     <style>[hidden] { display: none !important; }</style>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315263f'/%3E%3Cpath d='M17 18h30v8H17zm0 14h30v14H17z' fill='%23f7d84a'/%3E%3Cpath d='M25 26v6m14-6v6' stroke='%2315263f' stroke-width='4'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="styles.css?v=20260924-prioridades" />
+    <link rel="stylesheet" href="styles.css?v=20260925-fichas-filtros" />
   </head>
   <body>
     <section id="welcomeScreen" class="welcome-screen" aria-label="Acceso a Agenda Sitges 2026">
@@ -74,11 +74,10 @@
               <span aria-hidden="true">⌕</span>
               <input id="searchMovies" type="search" placeholder="Buscar por título o dirección" autocomplete="off" />
             </label>
-            <label class="select-field" for="sectionFilter">
-              <span>Filtrar sección</span>
-              <select id="sectionFilter"></select>
-            </label>
-            <label class="select-field" for="venueFilter"><span>Filtrar sala</span><select id="venueFilter"></select></label>
+            <details class="multi-filter"><summary>Secciones <span id="sectionFilterSummary">Todas</span></summary><div id="sectionFilter" class="multi-options" role="group" aria-label="Filtrar secciones"></div></details>
+            <details class="multi-filter"><summary>Salas <span id="venueFilterSummary">Todas</span></summary><div id="venueFilter" class="multi-options" role="group" aria-label="Filtrar salas"></div></details>
+            <details class="multi-filter"><summary>Duración <span id="durationFilterSummary">Todas</span></summary><div id="durationFilter" class="multi-options" role="group" aria-label="Filtrar duración"></div></details>
+            <p class="filter-help">Puedes marcar varias opciones por filtro. Duración de la película, no del pase conjunto.</p>
           </div>
 
           <p id="movieResults" class="results-note"></p>
@@ -136,12 +135,13 @@
         <label>Tamaño <select id="programScale"><option value="1">Normal</option><option value="0.75">Compacto</option><option value="1.35">Ampliado</option></select></label>
       </div>
       <p id="programGridSummary" class="program-grid-note"></p>
-      <p class="program-grid-note">Horas de Sitges. Desliza el cuadro en horizontal para recorrer los días y pulsa un pase para ver sus películas. El borde verde marca tus pases elegidos. Consultar el cuadro no modifica tu agenda.</p>
-      <div id="programGrid" class="program-grid-scroll" tabindex="0" aria-label="Cuadrícula de horarios por día y sala"></div>
+      <p class="program-grid-note">Pulsa un pase para ver sus películas y seleccionarlas. Borde verde: en tu agenda. Horas de Sitges.</p>
       <section id="programDetails" class="program-details" aria-live="polite" hidden></section>
+      <div id="programGrid" class="program-grid-scroll" tabindex="0" aria-label="Cuadrícula de horarios por día y sala"></div>
       <details class="program-pending"><summary id="programPendingTitle">Películas sin pase publicado</summary><div id="programPending"></div></details>
     </dialog>
     <div id="posterPreview" class="poster-preview" role="tooltip" hidden></div>
+    <dialog id="movieDetails" class="movie-details-dialog" aria-labelledby="movieDetailsTitle"><button type="button" class="movie-details-close" aria-label="Cerrar ficha de película">×</button><div id="movieDetailsContent"></div></dialog>
     <dialog id="accountDialog" aria-labelledby="accountTitle">
       <div class="dialog-heading"><h2 id="accountTitle">Mi cuenta</h2><button type="button" data-close-dialog="accountDialog" aria-label="Cerrar">×</button></div>
       <p id="accountExplanation">Entra con tu correo para recuperar tu agenda en el móvil y el ordenador.</p>
@@ -168,20 +168,20 @@
       <p id="preferencesMessage" role="status"></p>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="program.js?v=20260924-cuadro"></script>
+    <script src="program.js?v=20260925-fichas-filtros"></script>
     <script src="agenda-data.js?v=20260924-prioridades"></script>
     <script src="agenda-sync.js?v=20260924-cuadro"></script>
     <script src="agenda-storage.js?v=20260924-cuadro"></script>
     <script src="firebase-config.js?v=20260924-cuadro"></script>
     <script src="walking-times.js?v=20260924-cuadro"></script>
-    <script src="app.js?v=20260924-prioridades"></script>
+    <script src="app.js?v=20260925-fichas-filtros"></script>
     <script src="cloud.js?v=20260924-cuadro"></script>
     <script src="accounts.js?v=20260924-cuadro"></script>
-    <script src="poster-preview.js?v=20260924-movil-mapa2"></script>
-    <script src="program-grid.js?v=20260924-cuadro"></script>
+    <script src="poster-details.js?v=20260925-fichas-filtros"></script>
+    <script src="program-grid.js?v=20260925-fichas-filtros"></script>
     <script src="poster-index.js?v=20260924-cuadro"></script>
     <script src="excel-export.js?v=20260924-cuadro"></script>
     <script src="mobile-navigation.js?v=20260924-prioridades"></script>
-    <script src="film-views.js?v=20260924-prioridades"></script>
+    <script src="film-views.js?v=20260925-fichas-filtros"></script>
   </body>
 </html>

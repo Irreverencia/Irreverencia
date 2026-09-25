@@ -37,8 +37,9 @@
     agenda: new Map(),
     priorities: {},
     query: "",
-    section: "all",
-    venue: "all",
+    sections: new Set(),
+    venues: new Set(),
+    durations: new Set(),
     activeDay: allDaysKey,
     focusedMovieId: null,
     showUnassigned: false,
@@ -93,7 +94,7 @@
     .sort((a, b) => timeValue(a.session.start) - timeValue(b.session.start));
 
   const defaultSessionFor = (movie) => {
-    const sessionsForDay = movie.sessions.filter((session) => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (state.venue === "all" || session.location === state.venue));
+    const sessionsForDay = movie.sessions.filter(matchesSession);
     return [...sessionsForDay].filter(schedulable).sort((a, b) => timeValue(a.start) - timeValue(b.start))[0];
   };
   const ensureSessionsForSelectedMovies = () => {
@@ -137,26 +138,36 @@
     return conflicts;
   };
 
+  const matchesSession = session => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (!state.venues.size || state.venues.has(session.location));
+  const durationRanges = [
+    { id: 'short', label: 'Menos de 60 min', min: 0, max: 60 },
+    { id: '60', label: '60–89 min', min: 60, max: 90 },
+    { id: '90', label: '90–119 min', min: 90, max: 120 },
+    { id: '120', label: '120–149 min', min: 120, max: 150 },
+    { id: '150', label: '150 min o más', min: 150, max: Infinity },
+    { id: 'unknown', label: 'Duración no publicada' },
+  ];
+  const matchesDuration = movie => !state.durations.size || durationRanges.some(range => state.durations.has(range.id) && (range.id === 'unknown' ? !(movie.duration > 0) : movie.duration > 0 && movie.duration >= range.min && movie.duration < range.max));
   const renderMovieList = () => {
     const query = state.query.trim().toLocaleLowerCase("es");
     const visible = movies.filter((movie) => {
       const inText = [movie.title, movie.originalTitle, ...movie.directors].join(" ").toLocaleLowerCase("es").includes(query);
-      const inSection = state.section === "all" || movie.sections.includes(state.section) || movie.inclusion.includes(state.section);
-      const inScope = state.activeDay === allDaysKey && state.venue === "all" || movie.sessions.some((session) => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (state.venue === "all" || session.location === state.venue));
-      return inText && inSection && inScope;
+      const inSection = !state.sections.size || movie.sections.some(section => state.sections.has(section));
+      const inScope = state.activeDay === allDaysKey && !state.venues.size || movie.sessions.some(matchesSession);
+      return inText && inSection && inScope && matchesDuration(movie);
     });
     const scope = state.activeDay === allDaysKey ? "del catálogo del 8 al 18 de octubre" : `para ${shortDay(`${state.activeDay}T12:00:00`)}`;
     results.textContent = `${visible.length} películas ${scope} · marca las que quieres ver`;
     count.textContent = state.selected.size;
     const sessionsText = (movie) => {
-      const sessions = movie.sessions.filter((session) => (state.activeDay === allDaysKey || dateOf(session.start) === state.activeDay) && (state.venue === "all" || session.location === state.venue));
+      const sessions = movie.sessions.filter(matchesSession);
       if (!sessions.length) return movie.archived ? "No figura en el catálogo actual · sin pase confirmado" : "Pases pendientes de publicación";
       return sessions.map((session) => `${state.activeDay === allDaysKey ? `${shortDay(session.start)} · ` : ""}${timeOf(session.start)}${session.unconfirmedDuration ? " (fin pendiente de confirmar; aún no agendable)" : ""}`).join(" · ");
     };
     list.innerHTML = visible.map((movie) => `
       <article class="movie-entry"><label class="movie-card">
         <input type="checkbox" data-movie-id="${movie.id}" ${state.selected.has(movie.id) ? "checked" : ""} />
-        <span class="poster-wrap" tabindex="0" data-poster-id="${movie.id}" aria-label="Ver póster y sinopsis de ${escapeHtml(movie.title)}">${movie.posterUrl ? `<img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" />` : `<span class="poster-fallback">SIN<br>PÓSTER</span>`}</span>
+        <span class="poster-wrap" role="button" tabindex="0" data-poster-id="${movie.id}" aria-label="Ver ficha de ${escapeHtml(movie.title)}" aria-haspopup="dialog">${movie.posterUrl ? `<img class="movie-poster" loading="lazy" src="${escapeHtml(movie.posterUrl)}" alt="Póster de ${escapeHtml(movie.title)}" />` : `<span class="poster-fallback">SIN<br>PÓSTER</span>`}</span>
         <span>
           <span class="movie-title">${escapeHtml(movie.title)}</span>
           <span class="movie-meta">${movie.duration || "—"} min · ${movie.sessions.length} ${movie.sessions.length === 1 ? "pase" : "pases"}${movie.directors.length ? ` · ${escapeHtml(movie.directors.join(" · "))}` : ""}</span>
@@ -306,9 +317,30 @@
 
   const setupSections = () => {
     const options = [...new Set(movies.flatMap((movie) => movie.sections).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
-    $("#sectionFilter").innerHTML = `<option value="all">Todas las secciones</option>${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}`;
     const locations = [...new Set(movies.flatMap((movie) => movie.sessions.map(s => s.location)))].sort((a, b) => a.localeCompare(b, "es"));
-    $("#venueFilter").innerHTML = `<option value="all">Todas las salas</option>${locations.map(location => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`).join("")}`;
+    const setup = (id, key, choices) => {
+      const node = $(id);
+      const draw = () => {
+        const values = state[key];
+        node.innerHTML = `<label><input type="checkbox" value="all" data-filter-option ${!values.size ? 'checked' : ''}>Todas</label>` + choices.map(option => `<label><input type="checkbox" data-filter-option value="${escapeHtml(option.id)}" ${values.has(option.id) ? 'checked' : ''}>${escapeHtml(option.label)}</label>`).join('');
+        $(`${id}Summary`).textContent = values.size ? choices.filter(option => values.has(option.id)).map(option => option.label).join(' · ') : 'Todas';
+      };
+      node.addEventListener('change', event => {
+        const target = event.target;
+        if (target.value === 'all') state[key].clear();
+        else if (target.dataset?.filterOption !== undefined) {
+          if (target.checked) state[key].add(target.value); else state[key].delete(target.value);
+        } else state[key] = new Set([target.value]);
+        // Keep the focused checkbox in place while updating counts and results.
+        node.querySelectorAll?.('input').forEach(input => { input.checked = input.value === 'all' ? !state[key].size : state[key].has(input.value); });
+        $(`${id}Summary`).textContent = state[key].size ? choices.filter(option => state[key].has(option.id)).map(option => option.label).join(' · ') : 'Todas';
+        renderMovieList();
+      });
+      draw();
+    };
+    setup('#sectionFilter', 'sections', options.map(value => ({id:value,label:value})));
+    setup('#venueFilter', 'venues', locations.map(value => ({id:value,label:value})));
+    setup('#durationFilter', 'durations', durationRanges);
   };
   const venueForLocation = (location) => {
     if (location.includes("Llevant")) return "llevant";
@@ -400,8 +432,6 @@
   };
 
   $("#searchMovies").addEventListener("input", (event) => { state.query = event.target.value; renderMovieList(); });
-  $("#sectionFilter").addEventListener("change", (event) => { state.section = event.target.value; renderMovieList(); });
-  $("#venueFilter").addEventListener("change", (event) => { state.venue = event.target.value; renderMovieList(); });
   const chooseDay = (day) => {
     if (day !== allDaysKey && !travelDays.includes(day)) return;
     state.activeDay = day; state.focusedMovieId = null;
@@ -422,6 +452,7 @@
   list.addEventListener("change", (event) => {
     const id = event.target.dataset.movieId;
     if (!id) return;
+    if (locked) { event.target.checked = state.selected.has(id); return; }
     if (event.target.checked) {
       state.selected.add(id);
       const session = defaultSessionFor(movieById.get(id));
@@ -513,6 +544,22 @@
 
   window.SitgesAgenda = {
     snapshot,
+    selectScreening: (movieId, sessionId) => {
+      if (locked) return false;
+      const movie = movieById.get(movieId), session = movie?.sessions.find(s => s.id === sessionId);
+      if (!movie || !session) return false;
+      if (!schedulable(session) && state.agenda.has(movieId)) return false;
+      state.selected.add(movieId);
+      if (schedulable(session)) state.agenda.set(movieId, sessionId);
+      persist(); keepPosition(() => { renderMovieList(); renderAgenda(); });
+      const conflicts = conflictsByMovie().get(movieId) || [];
+      say(conflicts.length ? '⚠️ Pase seleccionado con conflicto. No se han movido las otras películas.' : schedulable(session) ? 'Película y pase añadidos a tu agenda.' : 'Película seleccionada sin pase: el festival todavía no ha confirmado la hora de fin.');
+      return { conflicts };
+    },
+    removeSelection: movieId => {
+      if (locked || !state.selected.has(movieId)) return false;
+      keepPosition(() => removeMovieFromSelection(movieId)); return true;
+    },
     subscribe: (callback) => { subscribers.add(callback); return () => subscribers.delete(callback); },
     setPriority: (movieId, score) => {
       if (locked || !state.selected.has(movieId) || !Number.isInteger(score) || score < 0 || score > 10) return false;

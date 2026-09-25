@@ -15,7 +15,7 @@
   const movies = window.SITGES_PROGRAM.movies, byId = new Map(movies.map(movie => [movie.id, movie]));
   const dayLabel = date => new Intl.DateTimeFormat('es-ES', {weekday:'short',day:'numeric',month:'long',timeZone:'Europe/Madrid'}).format(new Date(date.slice(0,10) + 'T12:00:00+02:00'));
   const passLabel = session => `${dayLabel(session.start)} · ${session.start.slice(11,16)}–${session.unconfirmedDuration ? 'fin pendiente' : session.end.slice(11,16)}${session.end.slice(0,10) !== session.start.slice(0,10) ? ' (+1 día)' : ''} · ${session.location}`;
-  const poster = movie => movie.posterUrl ? `<img class="catalog-poster" loading="lazy" src="${escape(movie.posterUrl)}" alt="Póster de ${escape(movie.title)}" />` : '<div class="poster-fallback">Sin póster</div>';
+  const poster = movie => `<button type="button" class="catalog-poster-button" data-poster-id="${movie.id}" aria-label="Ver ficha de ${escape(movie.title)}" aria-haspopup="dialog">${movie.posterUrl ? `<img class="catalog-poster" loading="lazy" src="${escape(movie.posterUrl)}" alt="Póster de ${escape(movie.title)}" />` : '<span class="poster-fallback">Sin póster</span>'}</button>`;
   $('#catalogDay').innerHTML = '<option value="all">Todos: 8–18 octubre</option>' + Array.from({length:11}, (_, i) => `2026-10-${String(i+8).padStart(2,'0')}`).map(day => `<option value="${day}">${escape(dayLabel(day))}</option>`).join('');
   $('#catalogVenue').innerHTML = '<option value="all">Todas las salas</option>' + [...new Set(movies.flatMap(movie => movie.sessions.map(s => s.location)))].sort().map(venue => `<option value="${escape(venue)}">${escape(venue)}</option>`).join('');
   let catalogRendered = false, lastSelection = '';

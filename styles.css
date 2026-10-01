@@ -243,6 +243,14 @@ dialog input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65re
 .stats span { color: var(--ink-soft); font-size: .76rem; }
 .map-panel { margin: 1.25rem 1.5rem 0; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: #fafcff; }
 .day-map-panel { margin: .75rem 0 1rem; }
+.daily-route-map { margin: 1rem 0; padding: .85rem; border: 1px solid var(--line, #ddd); border-radius: 12px; background: #fff; min-width: 0; }
+.daily-route-map h4 { margin: 0 0 .75rem; }
+.saved-map-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border-radius: 8px; }
+.saved-map-scroll .saved-map-image-wrap { min-width: 720px; }
+.day-map-itinerary { padding-left: 1.5rem; font-size: .82rem; line-height: 1.5; }
+.day-map-itinerary li { padding: .3rem 0; }
+.day-map-itinerary time { font-weight: 700; margin-right: .4rem; }
+.day-map-itinerary span, .day-map-itinerary small { display: block; }
 .map-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .map-heading h3 { margin: 0; font-size: 1rem; }
 .map-status { max-width: 35rem; margin: .28rem 0 0; color: var(--ink-soft); font-size: .78rem; line-height: 1.35; }

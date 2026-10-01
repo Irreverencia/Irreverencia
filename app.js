@@ -240,6 +240,9 @@
     const routesHtml = (items) => {
       const routes = walkingRoutesFor(items);
       if (!items.length) return "";
+      const day = dateOf(items[0].session.start);
+      const dailyVenues = [...new Set(items.map(item => venueForLocation(item.session.location)))].map(venueById).filter(Boolean);
+      const dailyMap = state.activeDay === allDaysKey ? `<section class="daily-route-map" aria-label="Mapa de rutas del ${escapeHtml(shortDay(day))}"><h4>Mapa de rutas · ${escapeHtml(shortDay(day))}</h4>${savedMapHtml(items, dailyVenues, null)}</section>` : "";
       const routeCards = routes.map(({ from, to, previous, item, timing }) => {
         const distance = timing?.distanceMeters == null ? "" : ` · ${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(timing.distanceMeters / 1000)} km`;
         const gap = timing && (timing.gapMinutes < 0 ? `Las películas se solapan ${Math.abs(timing.gapMinutes)} min.` : `${timing.gapMinutes} min entre películas.`);
@@ -255,7 +258,7 @@
           <div class="route-timing">${timing ? `<strong class="route-duration">≈ ${timing.minutes} min ${timing.withinMelia ? "para cambiar de sala en el Meliá" : `a pie${distance}`}</strong><span>${gap}</span><span class="route-margin">${margin}</span>` : `<span>Tiempo a pie no disponible. Consulta la ruta en Google Maps.</span>`}</div>
         </div>`;
       }).join("");
-      return `<section class="walking-routes" aria-label="Rutas a pie entre cines"><h4>Rutas a pie entre cines</h4>${routes.length ? `<div class="walking-route-list">${routeCards}</div><p class="walking-estimate-note">Tiempos aproximados, sin colas ni acceso a la sala. Entre salas del Meliá se reservan 5 min orientativos. Para Llevant se usa la entrada del hotel y se añaden 5 min de circulación interior al trayecto exterior. Los demás recorridos usan rutas peatonales guardadas el 23/09/2026 de <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noreferrer">OSRM/FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">Corregir el mapa</a>. No se cambian tus pases automáticamente.</p>` : `<p>Hoy no necesitas desplazarte entre cines para las películas agendadas.</p>`}</section>`;
+      return `${dailyMap}<section class="walking-routes" aria-label="Rutas a pie entre cines"><h4>Rutas a pie entre cines</h4>${routes.length ? `<div class="walking-route-list">${routeCards}</div><p class="walking-estimate-note">Tiempos aproximados, sin colas ni acceso a la sala. Entre salas del Meliá se reservan 5 min orientativos. Para Llevant se usa la entrada del hotel y se añaden 5 min de circulación interior al trayecto exterior. Los demás recorridos usan rutas peatonales guardadas el 23/09/2026 de <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noreferrer">OSRM/FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">Corregir el mapa</a>. No se cambian tus pases automáticamente.</p>` : `<p>Hoy no necesitas desplazarte entre cines para las películas agendadas.</p>`}</section>`;
     };
     const unassignedPanelHtml = state.showUnassigned && unassigned.length ? `<section id="unassignedPanel" class="unassigned-panel" aria-labelledby="unassignedTitle"><div class="unassigned-heading"><div><p class="eyebrow">PELÍCULAS SIN HUECO</p><h3 id="unassignedTitle">Elige un nuevo día y pase</h3><p>Estas películas siguen seleccionadas, pero no están en ningún día de tu agenda.</p></div><button class="close-unassigned" type="button" data-close-unassigned>Cerrar</button></div><div class="unassigned-list">${unassigned.map((movie) => {
       const options = compatibleSessionsFor(movie);
@@ -273,8 +276,8 @@
     const dayContentHtml = state.activeDay === allDaysKey
       ? `<section class="all-days-panel" role="tabpanel"><div class="day-heading"><h3>Todos los días del festival</h3><span>${planned.length} ${planned.length === 1 ? "película" : "películas"}</span></div>${travelDays.map((day) => { const items = itemsForDay(day); return `<section class="festival-day"><div class="day-heading"><h3>${shortDay(`${day}T12:00:00`)}</h3><span>${items.length} ${items.length === 1 ? "película" : "películas"}</span></div>${commitmentsHtml(day)}${cardsHtml(items)}${routesHtml(items)}</section>`; }).join("")}</section>`
       : `<section class="day-group" role="tabpanel"><div class="day-heading"><h3>${shortDay(`${state.activeDay}T12:00:00`)}</h3><span>${activeItems.length} ${activeItems.length === 1 ? "película" : "películas"}</span></div>${commitmentsHtml(state.activeDay)}${cardsHtml(activeItems)}${routesHtml(activeItems)}</section>`;
-    content.innerHTML = `${reviewHtml}${tabsHtml}${unassignedPanelHtml}${mapPanelHtml}${dayContentHtml}`;
-    renderMapForActiveDay();
+    content.innerHTML = `${reviewHtml}${tabsHtml}${unassignedPanelHtml}${state.activeDay === allDaysKey ? '' : mapPanelHtml}${dayContentHtml}`;
+    if (state.activeDay !== allDaysKey) renderMapForActiveDay();
     subscribers.forEach(callback => callback());
     if (state.showUnassigned && unassigned.length) requestAnimationFrame(() => $("#unassignedPanel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
@@ -377,15 +380,13 @@
   const googleMapsUrl = (venue) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue?.googleQuery || "Sitges, Barcelona")}`;
   const googleWalkingRouteUrl = (from, to) => `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${from.lat},${from.lng}`)}&destination=${encodeURIComponent(`${to.lat},${to.lng}`)}&travelmode=walking`;
   const mapItemsForDay = () => state.activeDay === allDaysKey ? plannedItems() : plannedItems().filter((item) => dateOf(item.session.start) === state.activeDay);
-  const renderSavedMap = (items, mapVenues, focusedVenue) => {
-    const target = $("#savedMap");
-    if (!target) return;
+  const savedMapHtml = (items, mapVenues, focusedVenue) => {
     const onMap = (venue) => venue && Number.isFinite(venue.mapX) && Number.isFinite(venue.mapY);
     const route = items.map((item, i) => {
       if (!i || dateOf(items[i - 1].session.start) !== dateOf(item.session.start)) return "";
       const from = venueById(venueForLocation(items[i - 1].session.location));
       const to = venueById(venueForLocation(item.session.location));
-      return onMap(from) && onMap(to) ? `<polyline class="saved-map-route" points="${from.mapX},${from.mapY} ${to.mapX},${to.mapY}" />` : "";
+      return onMap(from) && onMap(to) && (from.mapX !== to.mapX || from.mapY !== to.mapY) ? `<polyline class="saved-map-route" points="${from.mapX},${from.mapY} ${to.mapX},${to.mapY}" />` : "";
     }).join("");
     const labels = {
       auditori: "Auditori Meliá",
@@ -395,7 +396,7 @@
       mercat: "Mercat Vell",
       llevant: "Llevant · hotel, planta −1",
     };
-    const markers = venues.filter((venue) => onMap(venue) && (!venue.mapGroup || venue.id === "auditori")).map((venue) => {
+    const markers = venues.filter((venue) => onMap(venue) && (!venue.mapGroup || venue.id === "auditori") && mapVenues.some(item => item.id === venue.id || (venue.mapGroup && item.mapGroup === venue.mapGroup))).map((venue) => {
       const sameMarker = (item) => item?.id === venue.id || (venue.mapGroup && item?.mapGroup === venue.mapGroup);
       const active = sameMarker(focusedVenue) || (!focusedVenue && mapVenues.some(sameMarker));
       const scheduled = mapVenues.some(sameMarker);
@@ -405,7 +406,12 @@
       const label = venue.mapGroup === "melia" ? "Meliá · Auditori, Tramuntana y Llevant" : labels[venue.id] || venue.name;
       return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="6" text-anchor="${textAnchor}">${escapeHtml(label)}</text></g>`;
     }).join("");
-    target.innerHTML = `<div class="saved-map-image-wrap"><img class="saved-map-image" src="${mapImage}" width="1725" height="608" alt="Mapa de Sitges con las salas de proyección, sin alojamientos personales" /><svg class="saved-map-overlay" viewBox="0 0 1725 608" aria-hidden="true" focusable="false">${route}${markers}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div><p class="saved-map-note">Marcadores orientativos. Meliá agrupa sus tres salas; Mercat Vell queda fuera del encuadre. Las líneas unen salas, no son rutas por calles. Consulta los enlaces para caminar.</p>`;
+    const itinerary = items.length ? `<ol class="day-map-itinerary" aria-label="Orden de películas y salas del día">${items.map(item => `<li><time>${timeOf(item.session.start)}</time> <strong>${escapeHtml(item.movie.title)}</strong><span>${escapeHtml(item.session.location)}</span>${venueForLocation(item.session.location) === 'mercat' ? '<small>Fuera del encuadre del plano</small>' : ''}</li>`).join('')}</ol>` : '';
+    return `<div class="saved-map-scroll" role="region" aria-label="Plano de salas; desplaza horizontalmente para explorar" tabindex="0"><div class="saved-map-image-wrap"><img class="saved-map-image" loading="lazy" src="${mapImage}" width="1725" height="608" alt="Mapa de Sitges con las salas de proyección, sin alojamientos personales" /><svg class="saved-map-overlay" viewBox="0 0 1725 608" aria-hidden="true" focusable="false">${route}${markers}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div></div><p class="saved-map-note">Marcadores orientativos. Meliá agrupa sus tres salas; Mercat Vell queda fuera del encuadre. Las líneas unen salas, no son rutas por calles. Consulta los enlaces para caminar. En móvil puedes deslizar el plano lateralmente.</p>${itinerary}`;
+  };
+  const renderSavedMap = (items, mapVenues, focusedVenue) => {
+    const target = $("#savedMap");
+    if (target) target.innerHTML = savedMapHtml(items, mapVenues, focusedVenue);
   };
   const renderMapForActiveDay = () => {
     if (!$("#savedMap")) return;

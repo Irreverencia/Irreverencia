@@ -251,6 +251,7 @@ dialog input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65re
 .day-map-itinerary li { padding: .3rem 0; }
 .day-map-itinerary time { font-weight: 700; margin-right: .4rem; }
 .day-map-itinerary span, .day-map-itinerary small { display: block; }
+.map-street-address, .saved-map .map-street-address { display: block; margin: .15rem 0 .3rem; color: var(--ink-soft); font-size: .8rem; line-height: 1.45; overflow-wrap: anywhere; }
 .map-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .map-heading h3 { margin: 0; font-size: 1rem; }
 .map-status { max-width: 35rem; margin: .28rem 0 0; color: var(--ink-soft); font-size: .78rem; line-height: 1.35; }

@@ -18,12 +18,12 @@
   if (!movies.length) return;
   const movieById = new Map(movies.map((movie) => [movie.id, movie]));
   const venues = [
-    { id: "auditori", name: "Sala Auditori Meliá", address: "Hotel Meliá Sitges · Joan Salvat Papasseit, 38", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, 08870 Sitges, Barcelona", lat: 41.2367, lng: 1.82392, mapX: 1707, mapY: 450, mapGroup: "melia" },
-    { id: "tramuntana", name: "Sala Tramuntana Meliá", address: "Hotel Meliá Sitges · Joan Salvat Papasseit, 38", googleQuery: "Sala Tramuntana, Hotel Meliá Sitges, 08870 Sitges, Barcelona", lat: 41.23664, lng: 1.82436, mapX: 1707, mapY: 450, mapGroup: "melia" },
+    { id: "auditori", name: "Sala Auditori Meliá", address: "Carrer de Joan Salvat Papasseit, 38 · Hotel Meliá Sitges", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, 08870 Sitges, Barcelona", lat: 41.2367, lng: 1.82392, mapX: 1707, mapY: 450, mapGroup: "melia" },
+    { id: "tramuntana", name: "Sala Tramuntana Meliá", address: "Carrer de Joan Salvat Papasseit, 38 · Hotel Meliá Sitges", googleQuery: "Sala Tramuntana, Hotel Meliá Sitges, 08870 Sitges, Barcelona", lat: 41.23664, lng: 1.82436, mapX: 1707, mapY: 450, mapGroup: "melia" },
     { id: "prado", name: "Cinema Casino Prado", address: "Carrer de Francesc Gumà, 6-14 · Sitges", googleQuery: "Casino Prado Suburense, Carrer de Francesc Gumà 6-14, 08870 Sitges, Barcelona", lat: 41.23794, lng: 1.81062, mapX: 116, mapY: 275 },
     { id: "escorxador", name: "Cinema Escorxador", address: "Carrer de Joan Maragall, 36 · Sitges", googleQuery: "Carrer de Joan Maragall 36, 08870 Sitges, Barcelona", lat: 41.2371, lng: 1.81581, mapX: 768, mapY: 420 },
     { id: "mercat", name: "Mercat Vell", address: "Plaça de l'Ajuntament, 11 · Sitges", googleQuery: "Mercat Vell de Sitges, Plaça de l'Ajuntament 11, 08870 Sitges, Barcelona", lat: 41.23522, lng: 1.81166, mapX: null, mapY: null },
-    { id: "llevant", name: "Sala Llevant · Brigadoon", address: "Hotel Meliá Sitges · planta −1 · marcador del hotel", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, Sitges", lat: 41.2367, lng: 1.82392, mapX: 1707, mapY: 450, mapGroup: "melia" },
+    { id: "llevant", name: "Sala Llevant · Brigadoon", address: "Carrer de Joan Salvat Papasseit, 38 · Hotel Meliá Sitges · planta −1", googleQuery: "Hotel Meliá Sitges, Carrer de Joan Salvat Papasseit 38, Sitges", lat: 41.2367, lng: 1.82392, mapX: 1707, mapY: 450, mapGroup: "melia" },
   ];
   // Version the user's replacement image so browsers cannot reuse the old map.
   const mapImage = "assets/mapa-sitges-openstreetmap.png?v=96d3449bb03a";
@@ -251,9 +251,9 @@
           : timing.status === "tight" ? "⚠ Llegarías justo al inicio, sin margen."
           : `Te quedarían ${timing.marginMinutes} min de margen tras caminar.`);
         return `<div class="walking-route${timing ? ` route-${timing.status}` : ""}">
-          <span><strong>${escapeHtml(from.name)}</strong><small>Tras ${escapeHtml(previous.movie.title)} · ${timeOf(previous.session.end)}</small></span>
+          <span><strong>${escapeHtml(from.name)}</strong><span class="map-street-address">${escapeHtml(from.address)}</span><small>Tras ${escapeHtml(previous.movie.title)} · ${timeOf(previous.session.end)}</small></span>
           <span class="route-arrow" aria-hidden="true">→</span>
-          <span><strong>${escapeHtml(to.name)}</strong><small>Para ${escapeHtml(item.movie.title)} · ${timeOf(item.session.start)}</small></span>
+          <span><strong>${escapeHtml(to.name)}</strong><span class="map-street-address">${escapeHtml(to.address)}</span><small>Para ${escapeHtml(item.movie.title)} · ${timeOf(item.session.start)}</small></span>
           <a href="${googleWalkingRouteUrl(from, to)}" target="_blank" rel="noreferrer">Ver ruta a pie ↗</a>
           <div class="route-timing">${timing ? `<strong class="route-duration">≈ ${timing.minutes} min ${timing.withinMelia ? "para cambiar de sala en el Meliá" : `a pie${distance}`}</strong><span>${gap}</span><span class="route-margin">${margin}</span>` : `<span>Tiempo a pie no disponible. Consulta la ruta en Google Maps.</span>`}</div>
         </div>`;
@@ -406,7 +406,10 @@
       const label = venue.mapGroup === "melia" ? "Meliá · Auditori, Tramuntana y Llevant" : labels[venue.id] || venue.name;
       return `<g class="saved-map-marker${scheduled ? " scheduled" : ""}${active ? " active" : ""}" transform="translate(${venue.mapX} ${venue.mapY})"><circle r="15"/><circle class="saved-map-marker-core" r="5"/><text x="${textX}" y="6" text-anchor="${textAnchor}">${escapeHtml(label)}</text></g>`;
     }).join("");
-    const itinerary = items.length ? `<ol class="day-map-itinerary" aria-label="Orden de películas y salas del día">${items.map(item => `<li><time>${timeOf(item.session.start)}</time> <strong>${escapeHtml(item.movie.title)}</strong><span>${escapeHtml(item.session.location)}</span>${venueForLocation(item.session.location) === 'mercat' ? '<small>Fuera del encuadre del plano</small>' : ''}</li>`).join('')}</ol>` : '';
+    const itinerary = items.length ? `<ol class="day-map-itinerary" aria-label="Orden de películas y salas del día">${items.map(item => {
+      const venue = venueById(venueForLocation(item.session.location));
+      return `<li><time>${timeOf(item.session.start)}</time> <strong>${escapeHtml(item.movie.title)}</strong><span>${escapeHtml(item.session.location)}</span><span class="map-street-address">${escapeHtml(venue?.address || 'Dirección pendiente de confirmar')}</span>${venue?.id === 'mercat' ? '<small>Fuera del encuadre del plano</small>' : ''}</li>`;
+    }).join('')}</ol>` : '';
     return `<div class="saved-map-scroll" role="region" aria-label="Plano de salas; desplaza horizontalmente para explorar" tabindex="0"><div class="saved-map-image-wrap"><img class="saved-map-image" loading="lazy" src="${mapImage}" width="1725" height="608" alt="Mapa de Sitges con las salas de proyección, sin alojamientos personales" /><svg class="saved-map-overlay" viewBox="0 0 1725 608" aria-hidden="true" focusable="false">${route}${markers}</svg><span class="saved-map-attribution">Mapa base aportado · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></span></div></div><p class="saved-map-note">Marcadores orientativos. Meliá agrupa sus tres salas; Mercat Vell queda fuera del encuadre. Las líneas unen salas, no son rutas por calles. Consulta los enlaces para caminar. En móvil puedes deslizar el plano lateralmente.</p>${itinerary}`;
   };
   const renderSavedMap = (items, mapVenues, focusedVenue) => {

@@ -44,7 +44,7 @@
   $('#programDayFilter').innerHTML = '<option value="all">Todos: 8–18 octubre</option>' + Array.from({ length: 11 }, (_, i) => `2026-10-${String(i + 8).padStart(2, '0')}`).map(d => `<option value="${d}">${escape(dateLabel(d))}</option>`).join('');
   $('#programVenueFilter').innerHTML = '<option value="all">Todas las salas</option>' + [...new Set(all.map(s => s.location))].sort().map(v => `<option value="${escape(v)}">${escape(v)}</option>`).join('');
   function render() {
-    const chosen = Object.values(window.SitgesAgenda.snapshot().agenda);
+    const chosen = window.SitgesAgenda.assignedSessionIds();
     const view = layout(program, { day: $('#programDayFilter').value, venue: $('#programVenueFilter').value, scale: Number($('#programScale').value), chosen });
     $('#programGrid').innerHTML = `<div class="program-grid-board">${view.html}</div>`;
     $('#programGrid').scrollTop = Math.max(0, 480 - view.start) * Number($('#programScale').value);
@@ -86,7 +86,7 @@
   });
   window.SitgesAgenda.subscribe(() => {
     if (!$('#programDialog').open) return;
-    const chosen = new Set(Object.values(window.SitgesAgenda.snapshot().agenda));
+    const chosen = new Set(window.SitgesAgenda.assignedSessionIds());
     $('#programGrid').querySelectorAll('[data-grid-session]').forEach(button => {
       const selected = chosen.has(button.dataset.gridSession);
       button.classList.toggle('grid-chosen', selected);

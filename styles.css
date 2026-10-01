@@ -195,6 +195,13 @@ dialog input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65re
 .grid-selection-actions button { min-height: 44px; padding: .5rem .7rem; border: 1px solid #557400; border-radius: 7px; background: #f0f5df; color: #304000; font: inherit; font-size: .85rem; cursor: pointer; }
 .grid-selection-actions button:disabled { opacity: .65; cursor: default; }
 .grid-conflict { color: #a11919; font-weight: 750; }
+.programme-review { padding: 1rem; margin-bottom: 1rem; border: 1px solid #c39127; border-radius: 10px; background: #fff6dc; color: #59420b; font-size: .85rem; }
+.programme-review h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.programme-review small { display: block; margin: .2rem 0; }
+.programme-review li { margin: .8rem 0; }
+.programme-review details { max-height: 34dvh; overflow: auto; }
+.programme-review summary { cursor: pointer; min-height: 36px; font-weight: 750; }
+.programme-review button { margin-top: .7rem; padding: .7rem; min-height: 44px; border: 1px solid #8c661c; border-radius: 7px; background: white; color: inherit; font: inherit; cursor: pointer; }
 .grid-conflict:not(:empty) { padding: .5rem; border: 1px solid #d99393; border-radius: 6px; background: #fff0f0; }
 .program-details h3, .program-details p { margin: .25rem 0; }
 .program-pending { margin-top: .8rem; font-size: .85rem; max-height: 12dvh; overflow: auto; }
